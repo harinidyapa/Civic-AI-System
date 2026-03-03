@@ -24,5 +24,40 @@ export const loginCrew = (data) =>
 export const getAssignedIssues = () =>
   API.get("/issues/assigned");
 
-export const updateIssueStatus = (id, status) =>
-  API.put(`/issues/${id}/status`, { status });
+export const updateIssueStatus = (
+  id,
+  status,
+  {
+    comment = null,
+    evidenceFiles = [],
+    rejectionReason = null,
+    crewNote = null,
+    relatedIssue = null
+  } = {}
+) => {
+  // use FormData whenever there are files or extra fields
+  if (
+    evidenceFiles.length > 0 ||
+    rejectionReason ||
+    crewNote ||
+    relatedIssue
+  ) {
+    const form = new FormData();
+    form.append("status", status);
+    if (comment) form.append("comment", comment);
+    if (rejectionReason) form.append("rejectionReason", rejectionReason);
+    if (crewNote) form.append("crewNote", crewNote);
+    if (relatedIssue) form.append("relatedIssue", relatedIssue);
+    evidenceFiles.forEach((file) => form.append("evidence", file));
+    return API.put(`/issues/${id}/status`, form, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  }
+  // simple case with just status/comment
+  return API.put(`/issues/${id}/status`, {
+    status,
+    comment: comment || undefined,
+  });
+};

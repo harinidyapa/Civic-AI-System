@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ReportIssue from "./pages/ReportIssue";
 import MyReports from "./pages/MyReports";
+import Logs from "./pages/Logs";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(
@@ -26,6 +27,7 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/report" element={<ProtectedRoute isLoggedIn={isLoggedIn}><ReportIssue /></ProtectedRoute>} />
           <Route path="/my-reports" element={<ProtectedRoute isLoggedIn={isLoggedIn}><MyReports /></ProtectedRoute>} />
+          <Route path="/logs" element={<ProtectedRoute isLoggedIn={isLoggedIn}><Logs /></ProtectedRoute>} />
         </Routes>
       </main>
 

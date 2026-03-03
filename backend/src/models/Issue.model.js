@@ -61,6 +61,37 @@ const issueSchema = new mongoose.Schema(
     },
     urgencyLabel: String,
     urgencyKeywords: [String],
+    // Activity log for tracking lifecycle events
+    activityLog: [
+      {
+        status: {
+          type: String,
+          enum: ["pending", "assigned", "in_progress", "resolved", "rejected"],
+          required: true
+        },
+        changedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true
+        },
+        timestamp: {
+          type: Date,
+          default: Date.now
+        },
+        comment: String, // For in_progress: Resolution Plan or general notes
+        evidenceImages: [String], // can contain multiple proof images
+        rejectionReason: String, // reason for rejection when status is rejected
+        crewNote: String, // note returned to pool on soft rejection
+        relatedIssue: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Issue",
+        },
+        isViewed: {
+          type: Boolean,
+          default: false
+        }
+      }
+    ]
   },
   { timestamps: true }
 );

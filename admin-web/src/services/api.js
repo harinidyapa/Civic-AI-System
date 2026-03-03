@@ -15,13 +15,19 @@ export const loginAdmin = async (email, password) => {
 };
 
 // Get all issues (admin only)
-export const getAllIssues = async (token) => {
-  return API.get("/issues", { headers: { Authorization: `Bearer ${token}` } });
+export const getAllIssues = async (token, excludeResolved = false) => {
+  const params = excludeResolved ? "?excludeResolved=true" : "";
+  return API.get(`/issues${params}`, { headers: { Authorization: `Bearer ${token}` } });
 };
 
 // Get all crew members
 export const getCrews = async (token) => {
   return API.get("/admin/crews", { headers: { Authorization: `Bearer ${token}` } });
+};
+
+// Get resolved/archived issues
+export const getResolvedIssues = async (token) => {
+  return API.get("/issues", { headers: { Authorization: `Bearer ${token}` } });
 };
 
 // Assign issue to crew

@@ -5,7 +5,9 @@ import {
   getAllIssues,
   assignIssue,
   updateIssueStatus,
-  getMyIssues
+  getMyIssues,
+  getIssueDetail,
+  markLogsAsViewed
 } from "../controllers/issue.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { authorizeRoles } from "../middleware/role.middleware.js";
@@ -17,39 +19,16 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Citizen creates issue with optional image
+// Citizen creates issue with up to 3 images
 router.post(
   "/",
   protect,
   authorizeRoles("citizen"),
-  upload.single("image"),
+  upload.array("images", 3),
   createIssue
 );
 
-// Admin views all issues
-router.get(
-  "/",
-  protect,
-  authorizeRoles("admin"),
-  getAllIssues
-);
-
-// Admin assigns crew
-router.put(
-  "/:id/assign",
-  protect,
-  authorizeRoles("admin"),
-  assignIssue
-);
-
-// Crew updates status
-router.put(
-  "/:id/status",
-  protect,
-  authorizeRoles("crew"),
-  updateIssueStatus
-);
-
+// GET routes (must come before /:id routes to avoid conflicts)
 router.get("/my", protect, getMyIssues);
 
 router.get(
@@ -57,6 +36,38 @@ router.get(
   protect,
   authorizeRoles("crew"),
   getAssignedIssues
+);
+
+router.get(
+  "/",
+  protect,
+  authorizeRoles("admin"),
+  getAllIssues
+);
+
+// Routes with :id path parameter
+router.get("/:id/detail", protect, getIssueDetail);
+
+router.put(
+  "/:id/logs/viewed",
+  protect,
+  authorizeRoles("citizen"),
+  markLogsAsViewed
+);
+
+router.put(
+  "/:id/status",
+  protect,
+  authorizeRoles("crew"),
+  upload.array("evidence", 3),
+  updateIssueStatus
+);
+
+router.put(
+  "/:id/assign",
+  protect,
+  authorizeRoles("admin"),
+  assignIssue
 );
 
 export default router;

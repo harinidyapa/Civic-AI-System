@@ -120,7 +120,7 @@ function MyReports() {
                       <div className="flex items-center gap-2 text-slate-600 text-sm mb-3">
                         <MapPin size={16} />
                         <span>
-                          {report.lat?.toFixed(4)}, {report.lng?.toFixed(4)}
+                          {report.location?.address || `${report.location?.lat?.toFixed(4)}, ${report.location?.lng?.toFixed(4)}`}
                         </span>
                       </div>
                     </div>

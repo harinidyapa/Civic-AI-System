@@ -8,24 +8,25 @@ import axios from "axios";
  */
 export const createIssue = async (req, res, next) => {
   console.log("BODY:", req.body);
-  console.log("FILE:", req.file);
+  console.log("FILES:", req.files);
   console.log("USER:", req.user);
   try {
-    const { title, description, category, lat, lng } = req.body;
+    const { title, description, category, lat, lng, address } = req.body;
 
     if (!title || !description || !category || !lat || !lng) {
       return res.status(400).json({ message: "All fields including location are required" });
     }
 
-    // AI analysis (image analysis if image provided, text analysis always)
+    // AI analysis (image analysis if at least one image provided, text analysis always)
     let aiCategory = null, aiConfidence = null, aiGeneratedDescription = null, aiSeverityScore = null, is_miscategorized = null;
     let textClassification = null, textSummary = null, urgencyLevel = null, urgencyLabel = null, urgencyKeywords = [];
 
-    // Image analysis (only if image is provided)
-    if (req.file) {
+    // Image analysis using the first image only if provided
+    if (req.files && req.files.length > 0) {
       try {
+        const file = req.files[0];
         const aiResponse = await axios.post("http://localhost:8000/analyze", {
-          image: req.file.buffer.toString("base64")
+          image: file.buffer.toString("base64")
         });
         ({ predicted_category: aiCategory, confidence_percent: aiConfidence, generated_description: aiGeneratedDescription, severity_score: aiSeverityScore, is_miscategorized } = aiResponse.data);
       } catch (aiError) {
@@ -51,21 +52,27 @@ export const createIssue = async (req, res, next) => {
       }
     }
 
-    // Upload image to Cloudinary (only if image is provided)
-    let imageUrl = null;
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(
-        `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`
-      );
-      imageUrl = result.secure_url;
+    // Upload images to Cloudinary (if any provided)
+    let imageUrls = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const result = await cloudinary.uploader.upload(
+          `data:${file.mimetype};base64,${file.buffer.toString("base64")}`
+        );
+        imageUrls.push(result.secure_url);
+      }
     }
 
     const issue = await Issue.create({
       title,
       description,
       category,
-      location: { lat: parseFloat(lat), lng: parseFloat(lng) },
-      images: imageUrl ? [imageUrl] : [],
+      location: { 
+        lat: parseFloat(lat), 
+        lng: parseFloat(lng),
+        address: address || undefined
+      },
+      images: imageUrls,
       reportedBy: req.user._id,
       // Computer Vision AI
       aiCategory,
@@ -92,12 +99,23 @@ export const createIssue = async (req, res, next) => {
 
 /**
  * Admin views all issues
+ * Query params: 
+ * - excludeResolved: if true, excludes resolved and rejected issues
  */
 export const getAllIssues = async (req, res, next) => {
   try {
-    const issues = await Issue.find()
+    const { excludeResolved } = req.query;
+    
+    let query = {};
+    if (excludeResolved === 'true') {
+      query.status = { $nin: ["resolved", "rejected"] };
+    }
+    
+    const issues = await Issue.find(query)
       .populate("reportedBy", "name email")
-      .populate("assignedTo", "name email");
+      .populate("assignedTo", "name email")
+      .populate("activityLog.changedBy", "name email role")
+      .sort({ createdAt: -1 });
 
     res.status(200).json(issues);
   } catch (error) {
@@ -143,11 +161,49 @@ export const assignIssue = async (req, res, next) => {
 };
 
 /**
- * Crew updates issue status
+ * Crew updates issue status with mandatory validations
+ * For in_progress: requires comment (Resolution Plan)
+ * For resolved: requires evidenceImage (Proof of resolution)
  */
 export const updateIssueStatus = async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { status, comment, rejectionReason, crewNote, relatedIssue } = req.body;
+
+    // Determine target status after considering soft rejection
+    let newStatus = status;
+    const hardReasons = ["Duplicate Issue", "Issue Spamming"];
+    const softReasons = ["Insufficient Resources", "Specialized Equipment Needed"];
+
+    if (status === "rejected") {
+      if (softReasons.includes(rejectionReason)) {
+        newStatus = "pending"; // send back to pool with note
+        if (!crewNote || crewNote.trim().length === 0) {
+          return res.status(400).json({ message: "Crew Note is required for soft rejection" });
+        }
+      } else if (!hardReasons.includes(rejectionReason)) {
+        return res.status(400).json({ message: "Invalid rejection reason" });
+      }
+    }
+
+    // Validate mandatory inputs based on status
+    if (status === "in_progress" && (!comment || comment.trim().length === 0)) {
+      return res.status(400).json({
+        message: "Resolution Plan comment is mandatory for in_progress status"
+      });
+    }
+
+    if (status === "resolved") {
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({
+          message: "At least one proof image is required for resolved status"
+        });
+      }
+      if (req.files.length > 3) {
+        return res.status(400).json({
+          message: "You can upload up to 3 proof images"
+        });
+      }
+    }
 
     const issue = await Issue.findById(req.params.id);
 
@@ -161,11 +217,46 @@ export const updateIssueStatus = async (req, res, next) => {
       });
     }
 
-    issue.status = status;
+    // upload any evidence files
+    let evidenceUrls = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const result = await cloudinary.uploader.upload(
+          `data:${file.mimetype};base64,${file.buffer.toString("base64")}`
+        );
+        evidenceUrls.push(result.secure_url);
+      }
+    }
+
+    // Build log entry
+    const logEntry = {
+      status: newStatus,
+      changedBy: req.user._id,
+      timestamp: new Date(),
+      comment: comment || undefined,
+      evidenceImages: evidenceUrls.length ? evidenceUrls : undefined,
+      rejectionReason: rejectionReason || undefined,
+      crewNote: crewNote || undefined,
+      relatedIssue: relatedIssue || undefined,
+      isViewed: false
+    };
+
+    // Clean undefined keys
+    Object.keys(logEntry).forEach(key => logEntry[key] === undefined && delete logEntry[key]);
+
+    // if soft reject, clear assignment
+    if (newStatus === "pending" && softReasons.includes(rejectionReason)) {
+      issue.assignedTo = null;
+    }
+
+    issue.status = newStatus;
+    if (!issue.activityLog) issue.activityLog = [];
+    issue.activityLog.push(logEntry);
+
     await issue.save();
 
     res.status(200).json({
-      message: "Issue status updated",
+      message: "Issue status updated successfully",
       issue
     });
   } catch (error) {
@@ -176,9 +267,66 @@ export const updateIssueStatus = async (req, res, next) => {
 export const getMyIssues = async (req, res, next) => {
   try {
     const issues = await Issue.find({ reportedBy: req.user._id })
+      .populate("assignedTo", "name email")
       .sort({ createdAt: -1 });
 
     res.status(200).json(issues);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getIssueDetail = async (req, res, next) => {
+  try {
+    const issue = await Issue.findById(req.params.id)
+      .populate("reportedBy", "name email")
+      .populate("assignedTo", "name email")
+      .populate("activityLog.changedBy", "name email role");
+
+    if (!issue) {
+      return res.status(404).json({ message: "Issue not found" });
+    }
+
+    // Verify user has access (citizen can see their own, crew can see assigned)
+    const isCitizen = issue.reportedBy._id.toString() === req.user._id.toString();
+    const isCrew = issue.assignedTo && issue.assignedTo._id.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === "admin";
+
+    if (!isCitizen && !isCrew && !isAdmin) {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    res.status(200).json(issue);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Mark activity logs as viewed for a citizen viewing an issue
+ */
+export const markLogsAsViewed = async (req, res, next) => {
+  try {
+    const issue = await Issue.findById(req.params.id);
+
+    if (!issue) {
+      return res.status(404).json({ message: "Issue not found" });
+    }
+
+    // Verify user is the citizen who reported the issue
+    if (issue.reportedBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
+    // Mark all unviewed logs as viewed
+    if (issue.activityLog) {
+      issue.activityLog.forEach(log => {
+        log.isViewed = true;
+      });
+      await issue.save();
+    }
+
+    res.status(200).json({ message: "Logs marked as viewed" });
   } catch (error) {
     next(error);
   }

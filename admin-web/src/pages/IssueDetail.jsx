@@ -39,7 +39,7 @@ export default function IssueDetail() {
           <p>Category: <span className="font-medium">{issue.category}</span></p>
           <p>Status: <span className="font-medium">{issue.status}</span></p>
           <p>Reported By: <span className="font-medium">{issue.reportedBy?.name}</span></p>
-          <p>Location: <span className="font-medium">{issue.location?.lat}, {issue.location?.lng}</span></p>
+          <p>Location: <span className="font-medium">{issue.location?.address || `${issue.location?.lat?.toFixed(4)}, ${issue.location?.lng?.toFixed(4)}`}</span></p>
         </div>
         {issue.images && issue.images.length > 0 && (
           <div className="mt-4 space-y-4">

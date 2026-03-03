@@ -1,11 +1,38 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { Menu, X, User, Home, FileText, LogOut, LogIn, UserPlus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Menu, X, User, Home, FileText, LogOut, LogIn, UserPlus, History } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getMyReports } from "../services/api";
 
 function Navbar({ isLoggedIn, setIsLoggedIn }) {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [unviewedCount, setUnviewedCount] = useState(0);
+
+  // Fetch unviewed logs count
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchUnviewedCount();
+      // Refresh count every 30 seconds
+      const interval = setInterval(fetchUnviewedCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isLoggedIn]);
+
+  const fetchUnviewedCount = async () => {
+    try {
+      const { data } = await getMyReports();
+      let count = 0;
+      data.forEach(issue => {
+        if (issue.activityLog) {
+          count += issue.activityLog.filter(log => !log.isViewed).length;
+        }
+      });
+      setUnviewedCount(count);
+    } catch (error) {
+      console.error("Error fetching unviewed logs:", error);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -113,6 +140,17 @@ function Navbar({ isLoggedIn, setIsLoggedIn }) {
                     <span>My Reports</span>
                   </Link>
                 </motion.div>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="relative">
+                  <Link to="/logs" className="flex items-center space-x-2 text-slate-700 hover:text-emerald-600 transition-colors duration-300">
+                    <History size={18} />
+                    <span>Logs</span>
+                    {unviewedCount > 0 && (
+                      <span className="absolute -top-2 -right-3 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        {unviewedCount > 99 ? "99+" : unviewedCount}
+                      </span>
+                    )}
+                  </Link>
+                </motion.div>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <button onClick={handleLogout} className="flex items-center space-x-2 text-slate-700 hover:text-red-600 transition-colors duration-300">
                     <LogOut size={18} />
@@ -201,6 +239,17 @@ function Navbar({ isLoggedIn, setIsLoggedIn }) {
                       <Link to="/my-reports" onClick={() => setIsMenuOpen(false)} className="flex items-center space-x-3 px-3 py-2 text-slate-700 hover:text-emerald-600 transition-colors duration-300">
                         <FileText size={18} />
                         <span>My Reports</span>
+                      </Link>
+                    </motion.div>
+                    <motion.div variants={itemVariants} className="relative">
+                      <Link to="/logs" onClick={() => setIsMenuOpen(false)} className="flex items-center space-x-3 px-3 py-2 text-slate-700 hover:text-emerald-600 transition-colors duration-300">
+                        <History size={18} />
+                        <span>Logs</span>
+                        {unviewedCount > 0 && (
+                          <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                            {unviewedCount > 99 ? "99+" : unviewedCount}
+                          </span>
+                        )}
                       </Link>
                     </motion.div>
                     <motion.div variants={itemVariants}>

@@ -9,12 +9,13 @@ export default function AllIssues() {
   const [chosenCrewId, setChosenCrewId] = useState("");
   const token = localStorage.getItem("token");
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("pending"); // pending/assigned/in_progress/resolved/rejected
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const issuesRes = await getAllIssues(token);
-        setIssues(issuesRes.data);
+        const allRes = await getAllIssues(token, false);
+        setIssues(allRes.data);
         const crewsRes = await getCrews(token);
         setCrews(crewsRes.data);
       } catch (err) {
@@ -66,6 +67,11 @@ export default function AllIssues() {
     }
   };
 
+  const normalizeStatus = (s) => {
+    if (!s) return "";
+    return String(s).toLowerCase().replace(/\s+/g, "_");
+  };
+
   const openAssignModal = (issue) => {
     setAssignModalIssue(issue);
     setChosenCrewId("");
@@ -78,60 +84,123 @@ export default function AllIssues() {
 
   return (
     <div className="p-8">
-      <h1 className="text-3xl font-bold mb-6">All Issues</h1>
+      <h1 className="text-3xl font-bold mb-6">Issue Management</h1>
+
+      {/* Tab Navigation: horizontal tabs on md+; dropdown on small screens */}
+      <div className="mb-6">
+        <div className="hidden md:flex gap-4 border-b">
+          {[
+            { key: 'pending', label: 'Pending' },
+            { key: 'assigned', label: 'Assigned' },
+            { key: 'in_progress', label: 'In-Progress' },
+            { key: 'resolved', label: 'Resolved' },
+            { key: 'rejected', label: 'Rejected' }
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 font-semibold transition-colors ${
+                activeTab === tab.key
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              {tab.label} ({issues.filter(i => normalizeStatus(i.status) === tab.key).length})
+            </button>
+          ))}
+        </div>
+
+        <div className="md:hidden">
+          <label className="sr-only">Filter issues by status</label>
+          <select
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value)}
+            className="w-full p-3 rounded-xl border border-slate-300 bg-white mb-2"
+          >
+            <option value="pending">Pending ({issues.filter(i => normalizeStatus(i.status) === 'pending').length})</option>
+            <option value="assigned">Assigned ({issues.filter(i => normalizeStatus(i.status) === 'assigned').length})</option>
+            <option value="in_progress">In-Progress ({issues.filter(i => normalizeStatus(i.status) === 'in_progress').length})</option>
+            <option value="resolved">Resolved ({issues.filter(i => normalizeStatus(i.status) === 'resolved').length})</option>
+            <option value="rejected">Rejected ({issues.filter(i => normalizeStatus(i.status) === 'rejected').length})</option>
+          </select>
+        </div>
+      </div>
 
       <div className="grid gap-6">
-        {issues.map((issue) => (
-          <div
-            key={issue._id}
-            onClick={() => openDetail(issue)}
-            className="bg-white rounded-2xl shadow-lg p-6 cursor-pointer hover:shadow-xl transition-shadow duration-300"
-          >
-            <div className="flex justify-between items-start mb-3">
-              <h2 className="text-xl font-semibold text-slate-800 truncate">
-                {issue.title}
-              </h2>
-              <span
-                className={`px-3 py-1 rounded-full text-xs font-medium ${statusClasses(issue.status)}`}
-              >
-                {issue.status}
-              </span>
-            </div>
-            <p className="text-slate-600 text-sm mb-2 truncate">
-              Category: {issue.category}
-            </p>
-            <p className="text-slate-600 text-sm mb-2 truncate">
-              Reported by: {issue.reportedBy?.name}
-            </p>
-            <p className="text-slate-600 text-sm mb-4 truncate">
-              Assigned to: {issue.assignedTo?.name || "—"}
-            </p>
-
-            <div className="flex justify-between items-center">
-              {issue.status?.toLowerCase() === "assigned" ? (
-                <button
-                  className="bg-blue-500 text-white px-4 py-2 rounded opacity-70 cursor-not-allowed"
-                  disabled
-                >
-                  Assigned
-                </button>
-              ) : (
-                <button
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openAssignModal(issue);
-                  }}
-                >
-                  Assign
-                </button>
-              )}
-              <span className="text-xs text-slate-400">
-                {new Date(issue.createdAt).toLocaleDateString()}
-              </span>
-            </div>
+        {issues.filter(i => i.status === activeTab).length === 0 ? (
+          <div className="text-center py-8 text-slate-600">
+            No issues in this category
           </div>
-        ))}
+        ) : (
+          issues
+            .filter(i => i.status === activeTab)
+            .map((issue) => (
+              <div
+                key={issue._id}
+                onClick={() => openDetail(issue)}
+                className="bg-white rounded-2xl shadow-lg p-6 cursor-pointer hover:shadow-xl transition-shadow duration-300"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <h2 className="text-xl font-semibold text-slate-800 truncate">
+                    {issue.title}
+                  </h2>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${statusClasses(issue.status)}`}
+                  >
+                    {issue.status}
+                  </span>
+                </div>
+                <p className="text-slate-600 text-sm mb-2 truncate">
+                  Category: {issue.category}
+                </p>
+                <p className="text-slate-600 text-sm mb-2 truncate">
+                  Reported by: {issue.reportedBy?.name}
+                </p>
+                <p className="text-slate-600 text-sm mb-4 truncate">
+                  Assigned to: {issue.assignedTo?.name || "—"}
+                </p>
+                {issue.activityLog &&
+                  (() => {
+                    const last = issue.activityLog[issue.activityLog.length-1];
+                    if (!last) return null;
+                    return (
+                      <>
+                        {last.crewNote && (
+                          <p className="text-xs text-red-600">Crew note: {last.crewNote}</p>
+                        )}
+                        {last.rejectionReason && (
+                          <p className="text-xs text-red-600">Rejection: {last.rejectionReason}</p>
+                        )}
+                      </>
+                    );
+                  })()
+                }
+                <div className="flex justify-between items-center">
+                  {issue.status === "assigned" ? (
+                    <button
+                      className="bg-blue-500 text-white px-4 py-2 rounded opacity-70 cursor-not-allowed"
+                      disabled
+                    >
+                      Assigned
+                    </button>
+                  ) : activeTab === 'pending' ? (
+                    <button
+                      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openAssignModal(issue);
+                      }}
+                    >
+                      Assign
+                    </button>
+                  ) : null}
+                  <span className="text-xs text-slate-400">
+                    {new Date(issue.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            ))
+        )}
       </div>
 
       {assignModalIssue && (
