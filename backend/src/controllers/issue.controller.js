@@ -3,6 +3,8 @@ import cloudinary from "../config/cloudinary.js";
 import User from "../models/User.model.js";
 import axios from "axios";
 
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+
 /**
  * Citizen creates an issue (with optional image)
  */
@@ -17,28 +19,29 @@ export const createIssue = async (req, res, next) => {
       return res.status(400).json({ message: "All fields including location are required" });
     }
 
-    // AI analysis (image analysis if at least one image provided, text analysis always)
-    let aiCategory = null, aiConfidence = null, aiGeneratedDescription = null, aiSeverityScore = null, is_miscategorized = null;
-    let textClassification = null, textSummary = null, urgencyLevel = null, urgencyLabel = null, urgencyKeywords = [];
+    // ── AI fields ──
+    let aiCategory = null, aiConfidence = null, aiGeneratedDescription = null;
+    let aiSeverityScore = null, is_miscategorized = null;
+    let textClassification = null, textSummary = null;
+    let urgencyLevel = null, urgencyLabel = null, urgencyKeywords = [];
 
     // Image analysis using the first image only if provided
     if (req.files && req.files.length > 0) {
       try {
         const file = req.files[0];
-        const aiResponse = await axios.post("http://localhost:8000/analyze", {
+        const aiResponse = await axios.post(`${AI_SERVICE_URL}/analyze-and-enhance`, {
           image: file.buffer.toString("base64")
         });
-        ({ predicted_category: aiCategory, confidence_percent: aiConfidence, generated_description: aiGeneratedDescription, severity_score: aiSeverityScore, is_miscategorized } = aiResponse.data);
+        ({ predicted_category: aiCategory, confidence_percent: aiConfidence, enhanced_description: aiGeneratedDescription, severity_score: aiSeverityScore, is_miscategorized } = aiResponse.data);
       } catch (aiError) {
         console.error("AI service error:", aiError.message);
-        console.error("AI service full error:", aiError.response?.data || aiError.message);
       }
     }
 
     // Text analysis (always, for description)
     if (description && description.trim().length >= 3) {
       try {
-        const textResponse = await axios.post("http://localhost:8000/analyze-text", {
+        const textResponse = await axios.post(`${AI_SERVICE_URL}/analyze-text`, {
           text: description
         });
         const { classification, summary, urgency } = textResponse.data;
@@ -52,7 +55,7 @@ export const createIssue = async (req, res, next) => {
       }
     }
 
-    // Upload images to Cloudinary (if any provided)
+    // Upload images to Cloudinary
     let imageUrls = [];
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
@@ -67,8 +70,8 @@ export const createIssue = async (req, res, next) => {
       title,
       description,
       category,
-      location: { 
-        lat: parseFloat(lat), 
+      location: {
+        lat: parseFloat(lat),
         lng: parseFloat(lng),
         address: address || undefined
       },
@@ -88,6 +91,18 @@ export const createIssue = async (req, res, next) => {
       urgencyKeywords,
     });
 
+    // ── Save training data (fire-and-forget, non-blocking) ──
+    // Runs AFTER the issue is created so it never delays the response
+    if (req.files && req.files.length > 0) {
+      _saveTrainingDataAsync({
+        imageBuffer: req.files[0].buffer,
+        confirmedCategory: category,        // what citizen (possibly edited) submitted
+        aiCategory: aiCategory || "Uncategorized",
+        confidence: aiConfidence || 0,
+        issueId: issue._id.toString()
+      });
+    }
+
     res.status(201).json({
       message: "Issue reported successfully",
       issue
@@ -98,19 +113,37 @@ export const createIssue = async (req, res, next) => {
 };
 
 /**
+ * Fire-and-forget: saves the first image as a training sample.
+ * Never throws - errors are just logged so they don't affect the user.
+ */
+async function _saveTrainingDataAsync({ imageBuffer, confirmedCategory, aiCategory, confidence, issueId }) {
+  try {
+    await axios.post(`${AI_SERVICE_URL}/save-training-data`, {
+      image: imageBuffer.toString("base64"),
+      confirmed_category: confirmedCategory,
+      ai_category: aiCategory,
+      confidence,
+      issue_id: issueId
+    });
+    console.log(`✓ Training data saved for issue ${issueId} [${confirmedCategory}]`);
+  } catch (err) {
+    // Non-fatal - log and move on
+    console.warn(`⚠ Training data save failed for issue ${issueId}:`, err.message);
+  }
+}
+
+/**
  * Admin views all issues
- * Query params: 
- * - excludeResolved: if true, excludes resolved and rejected issues
  */
 export const getAllIssues = async (req, res, next) => {
   try {
     const { excludeResolved } = req.query;
-    
+
     let query = {};
-    if (excludeResolved === 'true') {
+    if (excludeResolved === "true") {
       query.status = { $nin: ["resolved", "rejected"] };
     }
-    
+
     const issues = await Issue.find(query)
       .populate("reportedBy", "name email")
       .populate("assignedTo", "name email")
@@ -129,32 +162,21 @@ export const getAllIssues = async (req, res, next) => {
 export const assignIssue = async (req, res, next) => {
   try {
     const { crewId } = req.body;
-
     const crewUser = await User.findById(crewId);
 
     if (!crewUser || crewUser.role !== "crew") {
-      return res.status(400).json({
-        message: "Invalid crew member"
-      });
+      return res.status(400).json({ message: "Invalid crew member" });
     }
 
     const issue = await Issue.findByIdAndUpdate(
       req.params.id,
-      {
-        assignedTo: crewId,
-        status: "assigned"
-      },
+      { assignedTo: crewId, status: "assigned" },
       { new: true }
     );
 
-    if (!issue) {
-      return res.status(404).json({ message: "Issue not found" });
-    }
+    if (!issue) return res.status(404).json({ message: "Issue not found" });
 
-    res.status(200).json({
-      message: "Issue assigned successfully",
-      issue
-    });
+    res.status(200).json({ message: "Issue assigned successfully", issue });
   } catch (error) {
     next(error);
   }
@@ -162,21 +184,18 @@ export const assignIssue = async (req, res, next) => {
 
 /**
  * Crew updates issue status with mandatory validations
- * For in_progress: requires comment (Resolution Plan)
- * For resolved: requires evidenceImage (Proof of resolution)
  */
 export const updateIssueStatus = async (req, res, next) => {
   try {
     const { status, comment, rejectionReason, crewNote, relatedIssue } = req.body;
 
-    // Determine target status after considering soft rejection
     let newStatus = status;
     const hardReasons = ["Duplicate Issue", "Issue Spamming"];
     const softReasons = ["Insufficient Resources", "Specialized Equipment Needed"];
 
     if (status === "rejected") {
       if (softReasons.includes(rejectionReason)) {
-        newStatus = "pending"; // send back to pool with note
+        newStatus = "pending";
         if (!crewNote || crewNote.trim().length === 0) {
           return res.status(400).json({ message: "Crew Note is required for soft rejection" });
         }
@@ -185,7 +204,6 @@ export const updateIssueStatus = async (req, res, next) => {
       }
     }
 
-    // Validate mandatory inputs based on status
     if (status === "in_progress" && (!comment || comment.trim().length === 0)) {
       return res.status(400).json({
         message: "Resolution Plan comment is mandatory for in_progress status"
@@ -194,30 +212,20 @@ export const updateIssueStatus = async (req, res, next) => {
 
     if (status === "resolved") {
       if (!req.files || req.files.length === 0) {
-        return res.status(400).json({
-          message: "At least one proof image is required for resolved status"
-        });
+        return res.status(400).json({ message: "At least one proof image is required for resolved status" });
       }
       if (req.files.length > 3) {
-        return res.status(400).json({
-          message: "You can upload up to 3 proof images"
-        });
+        return res.status(400).json({ message: "You can upload up to 3 proof images" });
       }
     }
 
     const issue = await Issue.findById(req.params.id);
-
-    if (!issue) {
-      return res.status(404).json({ message: "Issue not found" });
-    }
+    if (!issue) return res.status(404).json({ message: "Issue not found" });
 
     if (!issue.assignedTo || issue.assignedTo.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        message: "You are not assigned to this issue"
-      });
+      return res.status(403).json({ message: "You are not assigned to this issue" });
     }
 
-    // upload any evidence files
     let evidenceUrls = [];
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
@@ -228,7 +236,6 @@ export const updateIssueStatus = async (req, res, next) => {
       }
     }
 
-    // Build log entry
     const logEntry = {
       status: newStatus,
       changedBy: req.user._id,
@@ -241,10 +248,8 @@ export const updateIssueStatus = async (req, res, next) => {
       isViewed: false
     };
 
-    // Clean undefined keys
     Object.keys(logEntry).forEach(key => logEntry[key] === undefined && delete logEntry[key]);
 
-    // if soft reject, clear assignment
     if (newStatus === "pending" && softReasons.includes(rejectionReason)) {
       issue.assignedTo = null;
     }
@@ -252,13 +257,9 @@ export const updateIssueStatus = async (req, res, next) => {
     issue.status = newStatus;
     if (!issue.activityLog) issue.activityLog = [];
     issue.activityLog.push(logEntry);
-
     await issue.save();
 
-    res.status(200).json({
-      message: "Issue status updated successfully",
-      issue
-    });
+    res.status(200).json({ message: "Issue status updated successfully", issue });
   } catch (error) {
     next(error);
   }
@@ -269,7 +270,6 @@ export const getMyIssues = async (req, res, next) => {
     const issues = await Issue.find({ reportedBy: req.user._id })
       .populate("assignedTo", "name email")
       .sort({ createdAt: -1 });
-
     res.status(200).json(issues);
   } catch (error) {
     next(error);
@@ -283,11 +283,8 @@ export const getIssueDetail = async (req, res, next) => {
       .populate("assignedTo", "name email")
       .populate("activityLog.changedBy", "name email role");
 
-    if (!issue) {
-      return res.status(404).json({ message: "Issue not found" });
-    }
+    if (!issue) return res.status(404).json({ message: "Issue not found" });
 
-    // Verify user has access (citizen can see their own, crew can see assigned)
     const isCitizen = issue.reportedBy._id.toString() === req.user._id.toString();
     const isCrew = issue.assignedTo && issue.assignedTo._id.toString() === req.user._id.toString();
     const isAdmin = req.user.role === "admin";
@@ -302,27 +299,17 @@ export const getIssueDetail = async (req, res, next) => {
   }
 };
 
-/**
- * Mark activity logs as viewed for a citizen viewing an issue
- */
 export const markLogsAsViewed = async (req, res, next) => {
   try {
     const issue = await Issue.findById(req.params.id);
+    if (!issue) return res.status(404).json({ message: "Issue not found" });
 
-    if (!issue) {
-      return res.status(404).json({ message: "Issue not found" });
-    }
-
-    // Verify user is the citizen who reported the issue
     if (issue.reportedBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Unauthorized access" });
     }
 
-    // Mark all unviewed logs as viewed
     if (issue.activityLog) {
-      issue.activityLog.forEach(log => {
-        log.isViewed = true;
-      });
+      issue.activityLog.forEach(log => { log.isViewed = true; });
       await issue.save();
     }
 
@@ -334,9 +321,7 @@ export const markLogsAsViewed = async (req, res, next) => {
 
 export const getAssignedIssues = async (req, res, next) => {
   try {
-    const issues = await Issue.find({ assignedTo: req.user._id })
-      .sort({ createdAt: -1 });
-
+    const issues = await Issue.find({ assignedTo: req.user._id }).sort({ createdAt: -1 });
     res.status(200).json(issues);
   } catch (error) {
     next(error);
