@@ -1,0 +1,9 @@
+{
+  "sample_id": "136a6efd-e6b1-4ffc-a868-1d43643cd1fc",
+  "issue_id": "69a85d125de32de72c3b5058",
+  "confirmed_category": "Water Leakage",
+  "ai_predicted_category": "Water Leakage",
+  "ai_confidence": 100,
+  "was_corrected": false,
+  "timestamp": "2026-03-04T16:25:54.656433"
+}

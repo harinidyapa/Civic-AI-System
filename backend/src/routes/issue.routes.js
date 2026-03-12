@@ -9,17 +9,17 @@ import {
   getIssueDetail,
   markLogsAsViewed
 } from "../controllers/issue.controller.js";
+import { getResolutionSuggestion } from "../controllers/rag.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { authorizeRoles } from "../middleware/role.middleware.js";
 import multer from "multer";
 
 const router = express.Router();
 
-// Multer config to handle image uploads
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Citizen creates issue with up to 3 images
+// Citizen creates issue
 router.post(
   "/",
   protect,
@@ -28,7 +28,6 @@ router.post(
   createIssue
 );
 
-// GET routes (must come before /:id routes to avoid conflicts)
 router.get("/my", protect, getMyIssues);
 
 router.get(
@@ -45,8 +44,15 @@ router.get(
   getAllIssues
 );
 
-// Routes with :id path parameter
 router.get("/:id/detail", protect, getIssueDetail);
+
+// ── RAG: AI resolution suggestion for crew ──
+router.get(
+  "/:id/rag-suggest",
+  protect,
+  authorizeRoles("crew"),
+  getResolutionSuggestion
+);
 
 router.put(
   "/:id/logs/viewed",

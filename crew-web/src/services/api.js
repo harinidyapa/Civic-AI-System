@@ -4,12 +4,9 @@ const API = axios.create({
   baseURL: "http://localhost:5000/api"
 });
 
-// Attach token automatically
 API.interceptors.request.use((req) => {
   const token = localStorage.getItem("token");
-  if (token) {
-    req.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) req.headers.Authorization = `Bearer ${token}`;
   return req;
 });
 
@@ -24,24 +21,15 @@ export const loginCrew = (data) =>
 export const getAssignedIssues = () =>
   API.get("/issues/assigned");
 
+// ── RAG: Get AI resolution suggestion for an issue ──
+export const getRAGSuggestion = (issueId) =>
+  API.get(`/issues/${issueId}/rag-suggest`);
+
 export const updateIssueStatus = (
-  id,
-  status,
-  {
-    comment = null,
-    evidenceFiles = [],
-    rejectionReason = null,
-    crewNote = null,
-    relatedIssue = null
-  } = {}
+  id, status,
+  { comment = null, evidenceFiles = [], rejectionReason = null, crewNote = null, relatedIssue = null } = {}
 ) => {
-  // use FormData whenever there are files or extra fields
-  if (
-    evidenceFiles.length > 0 ||
-    rejectionReason ||
-    crewNote ||
-    relatedIssue
-  ) {
+  if (evidenceFiles.length > 0 || rejectionReason || crewNote || relatedIssue) {
     const form = new FormData();
     form.append("status", status);
     if (comment) form.append("comment", comment);
@@ -50,14 +38,8 @@ export const updateIssueStatus = (
     if (relatedIssue) form.append("relatedIssue", relatedIssue);
     evidenceFiles.forEach((file) => form.append("evidence", file));
     return API.put(`/issues/${id}/status`, form, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
+      headers: { "Content-Type": "multipart/form-data" }
     });
   }
-  // simple case with just status/comment
-  return API.put(`/issues/${id}/status`, {
-    status,
-    comment: comment || undefined,
-  });
+  return API.put(`/issues/${id}/status`, { status, comment: comment || undefined });
 };

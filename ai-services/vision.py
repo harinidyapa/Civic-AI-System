@@ -1,168 +1,114 @@
-import requests
-from config import HEADERS
-from ultralytics import YOLO
+import os
+import io
+import base64
 import numpy as np
 from PIL import Image
-import io
+from ultralytics import YOLO
+import google.generativeai as genai
+from dotenv import load_dotenv
 
-# Load YOLO model for object detection
-model = YOLO('yolov8n.pt')  # Pre-trained on COCO
+load_dotenv()
 
-# Map YOLO COCO classes to our categories (approximate)
+# Configure Gemini
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+
+# Load YOLO model
+yolo_model = YOLO('yolov8n.pt')
+
+# Valid civic categories
+CIVIC_CATEGORIES = ["Pothole", "Garbage", "Streetlight", "Water Leakage", "Uncategorized"]
+
+# YOLO COCO class → civic category mapping
 YOLO_TO_CATEGORY = {
-    0: "Uncategorized",  # person
-    1: "Uncategorized",  # bicycle
-    2: "Uncategorized",  # car
-    3: "Uncategorized",  # motorcycle
-    5: "Uncategorized",  # bus
-    7: "Uncategorized",  # truck
-    9: "Streetlight",  # traffic light
-    10: "Uncategorized",  # fire hydrant
-    11: "Uncategorized",  # stop sign
-    13: "Uncategorized",  # bench
-    14: "Uncategorized",  # bird
-    15: "Uncategorized",  # cat
-    16: "Uncategorized",  # dog
-    17: "Uncategorized",  # horse
-    18: "Uncategorized",  # sheep
-    19: "Uncategorized",  # cow
-    20: "Uncategorized",  # elephant
-    21: "Uncategorized",  # bear
-    22: "Uncategorized",  # zebra
-    23: "Uncategorized",  # giraffe
-    24: "Uncategorized",  # backpack
-    25: "Garbage",  # umbrella
-    26: "Uncategorized",  # handbag
-    27: "Uncategorized",  # tie
-    28: "Uncategorized",  # suitcase
-    29: "Uncategorized",  # frisbee
-    30: "Uncategorized",  # skis
-    31: "Uncategorized",  # snowboard
-    32: "Uncategorized",  # sports ball
-    33: "Uncategorized",  # kite
-    34: "Uncategorized",  # baseball bat
-    35: "Uncategorized",  # baseball glove
-    36: "Uncategorized",  # skateboard
-    37: "Uncategorized",  # surfboard
-    38: "Uncategorized",  # tennis racket
-    39: "Water Leakage",  # bottle
-    40: "Uncategorized",  # wine glass
-    41: "Uncategorized",  # cup
-    42: "Uncategorized",  # fork
-    43: "Uncategorized",  # knife
-    44: "Uncategorized",  # spoon
-    45: "Uncategorized",  # bowl
-    46: "Uncategorized",  # banana
-    47: "Uncategorized",  # apple
-    48: "Uncategorized",  # sandwich
-    49: "Uncategorized",  # orange
-    50: "Uncategorized",  # broccoli
-    51: "Uncategorized",  # carrot
-    52: "Uncategorized",  # hot dog
-    53: "Uncategorized",  # pizza
-    54: "Uncategorized",  # donut
-    55: "Uncategorized",  # cake
-    56: "Uncategorized",  # chair
-    57: "Uncategorized",  # couch
-    58: "Uncategorized",  # potted plant
-    59: "Uncategorized",  # bed
-    60: "Uncategorized",  # dining table
-    61: "Uncategorized",  # toilet
-    62: "Uncategorized",  # tv
-    63: "Uncategorized",  # laptop
-    64: "Uncategorized",  # mouse
-    65: "Uncategorized",  # remote
-    66: "Uncategorized",  # keyboard
-    67: "Uncategorized",  # cell phone
-    68: "Uncategorized",  # microwave
-    69: "Uncategorized",  # oven
-    70: "Uncategorized",  # toaster
-    71: "Uncategorized",  # sink
-    72: "Uncategorized",  # refrigerator
-    73: "Uncategorized",  # book
-    74: "Uncategorized",  # clock
-    75: "Uncategorized",  # vase
-    76: "Uncategorized",  # scissors
-    77: "Uncategorized",  # teddy bear
-    78: "Uncategorized",  # hair drier
-    79: "Uncategorized",  # toothbrush
+    9:  "Streetlight",   # traffic light (closest to streetlight)
+    39: "Water Leakage", # bottle (proxy — not perfect)
+    # Most COCO classes aren't civic issues, so we rely on Gemini for the rest
 }
 
-# Fallback to HF if YOLO doesn't detect relevant
-VISION_MODEL = "https://router.huggingface.co/hf-inference/models/google/vit-base-patch16-224"
-
-# Map HF labels to your app's categories
-LABEL_MAP = {
-    "Pothole": [
-        "pothole", "road", "asphalt", "pavement", "street", "crack", "damage",
-        "gravel", "cobblestone", "road surface", "tarmac", "highway", "pit"
-    ],
-    "Streetlight": [
-        "street light", "streetlight", "lamp", "lantern", "light", "pole",
-        "lamppost", "traffic light", "spotlight", "torch", "electric light"
-    ],
-    "Garbage": [
-        "garbage", "trash", "waste", "litter", "bin", "dump", "rubbish",
-        "refuse", "compost", "recycling", "dumpster", "bag", "pile", "heap"
-    ],
-    "Water Leakage": [
-        "water", "pipe", "flood", "leak", "puddle", "drain", "sewage",
-        "wet", "moisture", "overflow", "stream", "flow", "tap", "valve"
-    ],
-}
-
-def map_to_category(label: str):
-    label_lower = label.lower()
-    for category, keywords in LABEL_MAP.items():
-        for keyword in keywords:
-            if keyword in label_lower:
-                return category
-    return "Uncategorized"
 
 def classify_image(image_bytes):
-    # First, try YOLO for detection
+    """
+    Two-stage classification:
+    1. YOLO — fast local detection for known civic objects
+    2. Gemini Vision — smart fallback that actually understands civic context
+
+    Returns: (category, confidence)
+    """
     image = Image.open(io.BytesIO(image_bytes))
-    results = model(image)
-    
-    if results and len(results) > 0:
-        result = results[0]
-        if result.boxes and len(result.boxes) > 0:
-            # Get the highest confidence detection
-            boxes = result.boxes
-            max_conf_idx = np.argmax(boxes.conf.cpu().numpy())
-            class_id = int(boxes.cls[max_conf_idx].cpu().numpy())
-            confidence = float(boxes.conf[max_conf_idx].cpu().numpy())
-            category = YOLO_TO_CATEGORY.get(class_id, "Uncategorized")
-            if category != "Uncategorized":
-                return category, confidence
-    
-    # Fallback to HF ViT
-    response = requests.post(
-        VISION_MODEL,
-        headers={**HEADERS, "Content-Type": "application/octet-stream"},
-        data=image_bytes
-    )
 
-    print("HF Status code:", response.status_code)
-    print("HF Response text:", response.text)
+    # ── Stage 1: YOLO ──────────────────────────────
+    try:
+        results = yolo_model(image)
+        if results and len(results) > 0:
+            result = results[0]
+            if result.boxes and len(result.boxes) > 0:
+                boxes = result.boxes
+                max_conf_idx = int(np.argmax(boxes.conf.cpu().numpy()))
+                class_id = int(boxes.cls[max_conf_idx].cpu().numpy())
+                confidence = float(boxes.conf[max_conf_idx].cpu().numpy())
 
-    if response.status_code != 200:
-        print("HF API error:", response.status_code, response.text)
+                category = YOLO_TO_CATEGORY.get(class_id)
+                if category:
+                    print(f"YOLO detected: {category} ({confidence:.2f})")
+                    return category, confidence
+    except Exception as e:
+        print(f"YOLO error: {e}")
+
+    # ── Stage 2: Gemini Vision fallback ────────────
+    print("YOLO didn't find a civic issue — using Gemini Vision...")
+    return _classify_with_gemini(image_bytes)
+
+
+def _classify_with_gemini(image_bytes):
+    """
+    Uses Gemini's vision capability to identify civic issues in images.
+    Much smarter than YOLO for potholes, garbage, water leakage etc.
+    """
+    try:
+        # Convert to PIL for Gemini
+        image = Image.open(io.BytesIO(image_bytes))
+
+        # Convert to RGB if needed (handles PNG with alpha etc.)
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        prompt = """You are a smart city issue detection system.
+Look at this image and identify if it contains any of these civic issues:
+- Pothole (damaged road, cracks, holes in road surface)
+- Garbage (trash, waste, litter, dump, garbage pile)
+- Streetlight (broken lamp, dark street light, damaged pole)
+- Water Leakage (flooding, water pipe leak, puddle from pipe, sewage overflow)
+- Uncategorized (if none of the above are clearly visible)
+
+Reply in this EXACT format only:
+CATEGORY: <one of the 5 categories above>
+CONFIDENCE: <number between 0 and 1>
+REASON: <one short sentence>
+
+Nothing else."""
+
+        response = gemini_model.generate_content([prompt, image])
+        result = response.text.strip()
+        print(f"Gemini Vision response:\n{result}")
+
+        category = "Uncategorized"
+        confidence = 0.5
+
+        for line in result.split("\n"):
+            line = line.strip()
+            if line.startswith("CATEGORY:"):
+                cat = line.replace("CATEGORY:", "").strip()
+                if cat in CIVIC_CATEGORIES:
+                    category = cat
+            elif line.startswith("CONFIDENCE:"):
+                try:
+                    confidence = float(line.replace("CONFIDENCE:", "").strip())
+                except ValueError:
+                    confidence = 0.5
+
+        return category, round(confidence, 4)
+
+    except Exception as e:
+        print(f"Gemini Vision error: {e}")
         return "Uncategorized", 0.0
-
-    result = response.json()
-
-    if isinstance(result, list) and len(result) > 0:
-        # Try to find a matching category from top results
-        for item in result:
-            label = item.get("label", "")
-            score = item.get("score", 0.0)
-            category = map_to_category(label)
-            if category != "Uncategorized":
-                return category, round(score, 4)
-
-        # If nothing matched, return top result as Uncategorized
-        top = result[0]
-        return "Uncategorized", round(top.get("score", 0.0), 4)
-
-    return "Uncategorized", 0.0

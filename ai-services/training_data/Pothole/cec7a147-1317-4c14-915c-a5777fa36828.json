@@ -1,0 +1,9 @@
+{
+  "sample_id": "cec7a147-1317-4c14-915c-a5777fa36828",
+  "issue_id": "69a820be759bd0d597d2df98",
+  "confirmed_category": "Pothole",
+  "ai_predicted_category": "Garbage",
+  "ai_confidence": 0.8,
+  "was_corrected": true,
+  "timestamp": "2026-03-04T12:08:30.364649"
+}
