@@ -14,8 +14,29 @@ API.interceptors.request.use((req) => {
 export const registerCrew = (data) =>
   API.post("/auth/register", { ...data, role: "crew" });
 
-export const loginCrew = (data) =>
-  API.post("/auth/login", data);
+export const verifyRegistration = (identifier, otp) =>
+  API.post("/auth/register/verify", { identifier, otp });
+
+export const loginCrew = (identifier, password) =>
+  API.post("/auth/login", { identifier, password });
+
+export const requestOtp = (identifier) =>
+  API.post("/auth/request-otp", { identifier });
+
+export const verifyOtp = (identifier, otp) =>
+  API.post("/auth/verify-otp", { identifier, otp });
+
+export const requestPasswordReset = (identifier) =>
+  API.post("/auth/forgot-password", { identifier });
+
+export const verifyPasswordReset = (identifier, otp, newPassword) =>
+  API.post("/auth/forgot-password/verify", { identifier, otp, newPassword });
+
+// Profile
+export const getProfile = () => API.get("/auth/me");
+export const updateProfile = (name) => API.put("/auth/profile", { name });
+export const changePassword = (currentPassword, newPassword) =>
+  API.put("/auth/change-password", { currentPassword, newPassword });
 
 // Issues
 export const getAssignedIssues = () =>

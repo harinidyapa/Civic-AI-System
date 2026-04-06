@@ -1,0 +1,17 @@
+{
+  "name": "Civic AI Citizen",
+  "short_name": "Citizen",
+  "description": "Citizen portal for reporting and tracking local issues",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "Citizen app logo.png",
+      "sizes": "609x611",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

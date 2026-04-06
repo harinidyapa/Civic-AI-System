@@ -24,6 +24,14 @@ os.makedirs(TRAINING_DATA_DIR, exist_ok=True)
 
 app = Flask(__name__)
 
+# Enable CORS for frontend clients on a separate port
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    return response
+
 # ──────────────────────────────────────────────
 # EXISTING ENDPOINTS (unchanged)
 # ──────────────────────────────────────────────
@@ -498,8 +506,7 @@ Return ONLY the rewritten description. No preamble, no quotes, no explanation.""
         return jsonify({"suggestion": None}), 200
 
 if __name__ == "__main__":
-    app.run(port=8000, debug=True)
-
+    app.run(host="0.0.0.0", port=8000, debug=True)
 
 # ──────────────────────────────────────────────
 # RAG ENDPOINT: Resolution suggestion for crew

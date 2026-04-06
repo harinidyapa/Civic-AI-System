@@ -5,22 +5,34 @@ import { loginAdmin } from "../services/api";
 import { Shield, Mail, Lock, ArrowRight } from "lucide-react";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (!identifier || !password) {
+      setError("Email/username and password are required");
+      return;
+    }
+
     setIsLoading(true);
+    setError("");
+
     try {
-      const res = await loginAdmin(email, password);
+      const res = await loginAdmin(identifier, password);
+      if (res.data.role !== "admin") {
+        setError("Role mismatch: admin access only.");
+        return;
+      }
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("role", res.data.role);
       if (res.data.name) localStorage.setItem("userName", res.data.name);
       navigate("/dashboard");
     } catch (err) {
-      alert(err.response?.data?.message || "Login failed");
+      setError(err.response?.data?.message || "Login failed");
     } finally {
       setIsLoading(false);
     }
@@ -78,28 +90,28 @@ export default function Login() {
         >
           <h2 className="text-2xl font-semibold text-white text-center mb-6">Sign In</h2>
 
+          {error && (
+            <div className="mb-4 text-sm rounded-md bg-rose-100 border border-rose-200 text-rose-800 p-3">
+              {error}
+            </div>
+          )}
+
           <form className="space-y-6" onSubmit={handleLogin}>
-            <motion.div
-              variants={itemVariants}
-              whileFocus={{ scale: 1.02 }}
-            >
+            <motion.div variants={itemVariants} whileFocus={{ scale: 1.02 }}>
               <div className="relative">
                 <Mail size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                 <input
-                  type="email"
-                  placeholder="Administrator Email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-300"
+                  type="text"
+                  placeholder="Email or Username"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   required
+                  className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-300"
                 />
               </div>
             </motion.div>
 
-            <motion.div
-              variants={itemVariants}
-              whileFocus={{ scale: 1.02 }}
-            >
+            <motion.div variants={itemVariants} whileFocus={{ scale: 1.02 }}>
               <div className="relative">
                 <Lock size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                 <input
@@ -107,8 +119,8 @@ export default function Login() {
                   placeholder="Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-300"
                   required
+                  className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-300"
                 />
               </div>
             </motion.div>
@@ -124,15 +136,21 @@ export default function Login() {
               {isLoading ? (
                 <div className="flex items-center justify-center">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  Signing In...
+                  Logging in...
                 </div>
               ) : (
                 <div className="flex items-center justify-center">
-                  Sign In
+                  Login
                   <ArrowRight size={20} className="ml-2" />
                 </div>
               )}
             </motion.button>
+
+            <div className="text-right text-sm text-indigo-200">
+              <Link to="/forgot-password" className="underline hover:text-white">
+                Forgot password?
+              </Link>
+            </div>
           </form>
 
           <motion.div

@@ -3,7 +3,7 @@ import cloudinary from "../config/cloudinary.js";
 import User from "../models/User.model.js";
 import axios from "axios";
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://127.0.0.1:8000";;
 
 /**
  * Citizen creates an issue (with optional image)

@@ -140,6 +140,12 @@ function Navbar({ isLoggedIn, setIsLoggedIn }) {
                     <span>My Reports</span>
                   </Link>
                 </motion.div>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link to="/profile" className="flex items-center space-x-2 text-slate-700 hover:text-emerald-600 transition-colors duration-300">
+                    <User size={18} />
+                    <span>Profile</span>
+                  </Link>
+                </motion.div>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="relative">
                   <Link to="/logs" className="flex items-center space-x-2 text-slate-700 hover:text-emerald-600 transition-colors duration-300">
                     <History size={18} />
@@ -150,12 +156,6 @@ function Navbar({ isLoggedIn, setIsLoggedIn }) {
                       </span>
                     )}
                   </Link>
-                </motion.div>
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <button onClick={handleLogout} className="flex items-center space-x-2 text-slate-700 hover:text-red-600 transition-colors duration-300">
-                    <LogOut size={18} />
-                    <span>Logout</span>
-                  </button>
                 </motion.div>
               </>
             )}
@@ -241,6 +241,12 @@ function Navbar({ isLoggedIn, setIsLoggedIn }) {
                         <span>My Reports</span>
                       </Link>
                     </motion.div>
+                    <motion.div variants={itemVariants}>
+                      <Link to="/profile" onClick={() => setIsMenuOpen(false)} className="flex items-center space-x-3 px-3 py-2 text-slate-700 hover:text-emerald-600 transition-colors duration-300">
+                        <User size={18} />
+                        <span>Profile</span>
+                      </Link>
+                    </motion.div>
                     <motion.div variants={itemVariants} className="relative">
                       <Link to="/logs" onClick={() => setIsMenuOpen(false)} className="flex items-center space-x-3 px-3 py-2 text-slate-700 hover:text-emerald-600 transition-colors duration-300">
                         <History size={18} />
@@ -251,12 +257,6 @@ function Navbar({ isLoggedIn, setIsLoggedIn }) {
                           </span>
                         )}
                       </Link>
-                    </motion.div>
-                    <motion.div variants={itemVariants}>
-                      <button onClick={handleLogout} className="flex items-center space-x-3 px-3 py-2 w-full text-left text-slate-700 hover:text-red-600 transition-colors duration-300">
-                        <LogOut size={18} />
-                        <span>Logout</span>
-                      </button>
                     </motion.div>
                   </>
                 )}

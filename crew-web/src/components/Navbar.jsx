@@ -91,15 +91,12 @@ function Navbar() {
               </Link>
             </motion.div>
 
-            <motion.button
-              onClick={handleLogout}
-              className="flex items-center space-x-2 text-slate-700 hover:text-red-600 transition-colors duration-300"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <LogOut size={18} />
-              <span>Logout</span>
-            </motion.button>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Link to="/profile" className="flex items-center space-x-2 text-slate-700 hover:text-amber-600 transition-colors duration-300">
+                <User size={18} />
+                <span>Profile</span>
+              </Link>
+            </motion.div>
           </div>
 
           {/* Profile Section (Desktop) */}
@@ -156,14 +153,12 @@ function Navbar() {
                   </Link>
                 </motion.div>
 
-                <motion.button
-                  onClick={handleLogout}
-                  className="flex items-center space-x-3 px-3 py-2 w-full text-left text-slate-700 hover:text-red-600 transition-colors duration-300"
-                  variants={itemVariants}
-                >
-                  <LogOut size={18} />
-                  <span>Logout</span>
-                </motion.button>
+                <motion.div variants={itemVariants}>
+                  <Link to="/profile" onClick={() => setIsMenuOpen(false)} className="flex items-center space-x-3 px-3 py-2 text-slate-700 hover:text-amber-600 transition-colors duration-300">
+                    <User size={18} />
+                    <span>Profile</span>
+                  </Link>
+                </motion.div>
               </div>
 
               {/* Profile Section (Mobile) */}

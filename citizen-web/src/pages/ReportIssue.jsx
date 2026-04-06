@@ -17,7 +17,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-const AI_SERVICE_URL = "http://localhost:8000";
+const AI_SERVICE_URL = import.meta.env.VITE_AI_SERVICE_URL || `http://${window.location.hostname}:8000`;
 
 const URGENCY_COLORS = {
   Critical: "bg-red-100 text-red-700 border-red-300",
@@ -184,6 +184,7 @@ function ReportIssue() {
   const [searchQuery, setSearchQuery]     = useState("");
   const [suggestions, setSuggestions]     = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [loading, setLoading]             = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [geoLoading, setGeoLoading]       = useState(true);
@@ -246,7 +247,9 @@ function ReportIssue() {
 
         const sugg = res.data?.suggestion;
         if (sugg && sugg.trim().length > 10) {
+          setFormData(prev => ({ ...prev, description: sugg }));
           setRagSuggestion(sugg);
+          setAiApplied(prev => ({ ...prev, description: true }));
         }
       } catch (err) {
         // silent fail — never block the user
@@ -353,7 +356,7 @@ function ReportIssue() {
   const handleSearch = (val) => {
     setSearchQuery(val);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    if (val.length < 3) { setSuggestions([]); return; }
+    if (val.length < 3) { setSuggestions([]); setShowSuggestions(false); return; }
     searchTimeoutRef.current = setTimeout(async () => {
       const results = await searchAddress(val);
       setSuggestions(results);
@@ -361,13 +364,46 @@ function ReportIssue() {
     }, 400);
   };
 
-  const selectSuggestion = (feature) => {
+  const selectSuggestion = (feature, options = {}) => {
     const [lon, lat] = feature.geometry.coordinates;
-    const addr = feature.properties.name || feature.properties.street;
+    const addr = feature.properties.name || feature.properties.street || feature.properties.city || `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
     setPosition([lat, lon]);
     setAddress(addr);
     setSearchQuery(addr);
-    setShowSuggestions(false);
+    if (!options.keepSuggestions) setShowSuggestions(false);
+  };
+
+  const searchLocation = async () => {
+    const query = searchQuery.trim();
+    if (query.length < 3) return;
+    setSearchLoading(true);
+    try {
+      const results = await searchAddress(query);
+      setSuggestions(results);
+      setShowSuggestions(true);
+      if (results.length > 0) {
+        selectSuggestion(results[0]);
+      }
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) return alert("Geolocation is not supported by your browser.");
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setPosition([latitude, longitude]);
+        reverseGeocode(latitude, longitude, (addr) => { setAddress(addr); setSearchQuery(addr); });
+        setGeoLoading(false);
+      },
+      () => {
+        setGeoLoading(false);
+        alert("Unable to access your current location.");
+      }
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -552,31 +588,80 @@ function ReportIssue() {
 
           {/* Location */}
           <div className="space-y-4">
-            <label className="block text-sm font-bold text-slate-700">Search Location</label>
-            <div className="relative">
-              <div className="flex items-center border border-slate-300 rounded-xl p-3 bg-white focus-within:ring-2 focus-within:ring-red-500">
-                <Search className="text-slate-400 mr-2" size={18} />
-                <input value={searchQuery} onChange={(e) => handleSearch(e.target.value)}
-                  placeholder="Type address..." className="w-full outline-none text-sm" />
-              </div>
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute z-50 w-full bg-white border rounded-xl mt-1 shadow-2xl max-h-48 overflow-y-auto">
-                  {suggestions.map((s, i) => (
-                    <div key={i} onClick={() => selectSuggestion(s)}
-                      className="p-3 hover:bg-slate-100 cursor-pointer text-sm border-b last:border-0">
-                      <p className="font-semibold">{s.properties.name}</p>
-                      <p className="text-xs text-slate-500">{s.properties.city}, {s.properties.state}</p>
-                    </div>
-                  ))}
+            <div className="rounded-[30px] border border-slate-200 bg-slate-50 p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Location</p>
+                  <h2 className="text-xl font-semibold text-slate-900 mt-2">Where is the issue located?</h2>
                 </div>
-              )}
-            </div>
-            <div className="h-64 rounded-2xl overflow-hidden border border-slate-300 z-0 relative">
-              <MapContainer center={[20.5, 78.9]} zoom={5} style={{ height: "100%" }}>
-                <ChangeView center={position} />
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <LocationMarker position={position} setPosition={setPosition} setAddress={setAddress} setSearchQuery={setSearchQuery} />
-              </MapContainer>
+                <button type="button" onClick={useCurrentLocation}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-100">
+                  Use current location
+                </button>
+              </div>
+
+              <div className="mt-5">
+                <div className="relative">
+                  <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <Search className="text-slate-400" size={18} />
+                    <input
+                      value={searchQuery}
+                      onChange={(e) => handleSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          searchLocation();
+                        }
+                      }}
+                      placeholder="Search for an address or landmark"
+                      className="w-full bg-transparent text-sm text-slate-900 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={searchLocation}
+                      className="inline-flex items-center justify-center rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+                    >
+                      {searchLoading ? "Searching..." : "Search"}
+                    </button>
+                  </div>
+                  {showSuggestions && suggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
+                      {suggestions.map((s, i) => (
+                        <button key={i} type="button" onClick={() => selectSuggestion(s)}
+                          className="w-full text-left px-4 py-3 hover:bg-slate-100 focus:bg-slate-100">
+                          <p className="font-semibold text-slate-900">{s.properties.name || s.properties.street || s.properties.city}</p>
+                          <p className="text-xs text-slate-500">{[s.properties.city, s.properties.state, s.properties.country].filter(Boolean).join(", ")}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5 relative overflow-hidden rounded-[28px] border border-slate-200 bg-slate-100 shadow-sm h-72">
+                <MapContainer center={position || [20.5, 78.9]} zoom={position ? 16 : 5} scrollWheelZoom={true} style={{ height: "100%" }}>
+                  <ChangeView center={position} />
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <LocationMarker position={position} setPosition={setPosition} setAddress={setAddress} setSearchQuery={setSearchQuery} />
+                </MapContainer>
+                <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/90 shadow-2xl backdrop-blur-xl">
+                    <MapPin size={28} className="text-red-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4">
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Selected address</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900 min-h-[3rem]">
+                  {address || "Tap on the map or search for a location to select it."}
+                </p>
+                {position && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    {`Latitude ${position[0].toFixed(5)}, Longitude ${position[1].toFixed(5)}`}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

@@ -1,37 +1,43 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { motion } from "framer-motion";
 import { loginCrew } from "../services/api";
+import { motion } from "framer-motion";
 import { HardHat, Mail, Lock, ArrowRight } from "lucide-react";
 
 export default function Login() {
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    try {
-      const { data } = await loginCrew(form);
+    if (!identifier || !password) {
+      setError("Email/username and password are required");
+      return;
+    }
 
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const { data } = await loginCrew(identifier, password);
       if (data.role !== "crew") {
-        alert("Access denied");
+        setError("Role mismatch: crew access only.");
         return;
       }
-
       localStorage.setItem("token", data.token);
       localStorage.setItem("role", data.role);
       if (data.name) localStorage.setItem("userName", data.name);
-      // role will already be stored; keep for clarity
-
       navigate("/dashboard");
     } catch (err) {
-      alert("Invalid credentials");
+      setError(err.response?.data?.message || "Login failed");
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -85,35 +91,37 @@ export default function Login() {
         >
           <h2 className="text-2xl font-semibold text-white text-center mb-6">Field Login</h2>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <motion.div
-              variants={itemVariants}
-              whileFocus={{ scale: 1.02 }}
-            >
+          {error && (
+            <div className="mb-4 text-sm rounded-md bg-rose-100 border border-rose-200 text-rose-800 p-3">
+              {error}
+            </div>
+          )}
+
+          <form className="space-y-6" onSubmit={handleLogin}>
+            <motion.div variants={itemVariants} whileFocus={{ scale: 1.02 }}>
               <div className="relative">
                 <Mail size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-300" />
                 <input
-                  type="email"
-                  placeholder="Crew Email"
-                  className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  type="text"
+                  placeholder="Email or Username"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   required
+                  className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
                 />
               </div>
             </motion.div>
 
-            <motion.div
-              variants={itemVariants}
-              whileFocus={{ scale: 1.02 }}
-            >
+            <motion.div variants={itemVariants} whileFocus={{ scale: 1.02 }}>
               <div className="relative">
                 <Lock size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-300" />
                 <input
                   type="password"
                   placeholder="Password"
-                  className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
+                  className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
                 />
               </div>
             </motion.div>
@@ -129,15 +137,21 @@ export default function Login() {
               {isLoading ? (
                 <div className="flex items-center justify-center">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  Signing In...
+                  Logging in...
                 </div>
               ) : (
                 <div className="flex items-center justify-center">
-                  Sign In
+                  Login
                   <ArrowRight size={20} className="ml-2" />
                 </div>
               )}
             </motion.button>
+
+            <div className="text-right text-sm text-orange-200">
+              <Link to="/forgot-password" className="underline hover:text-white">
+                Forgot password?
+              </Link>
+            </div>
           </form>
 
           <motion.div

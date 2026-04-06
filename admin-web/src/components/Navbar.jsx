@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Menu, X, User, FileText, BarChart3, Users, LogOut, Shield } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -104,15 +104,12 @@ export default function Navbar({ setActivePage, activePage }) {
               );
             })}
 
-            <motion.button
-              onClick={handleLogout}
-              className="flex items-center space-x-2 text-slate-700 hover:text-red-600 transition-colors duration-300 px-4 py-2 rounded-2xl hover:bg-red-50"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <LogOut size={18} />
-              <span>Logout</span>
-            </motion.button>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Link to="/profile" className="flex items-center space-x-2 text-slate-700 hover:text-indigo-600 transition-colors duration-300 px-4 py-2 rounded-2xl hover:bg-indigo-50">
+                <User size={18} />
+                <span>Profile</span>
+              </Link>
+            </motion.div>
           </div>
 
           {/* Profile Section (Desktop) */}
@@ -177,14 +174,12 @@ export default function Navbar({ setActivePage, activePage }) {
                   );
                 })}
 
-                <motion.button
-                  onClick={handleLogout}
-                  className="flex items-center space-x-3 px-3 py-2 w-full text-left text-slate-700 hover:text-red-600 transition-colors duration-300 rounded-xl hover:bg-red-50"
-                  variants={itemVariants}
-                >
-                  <LogOut size={18} />
-                  <span>Logout</span>
-                </motion.button>
+                <motion.div variants={itemVariants}>
+                  <Link to="/profile" onClick={() => setIsMenuOpen(false)} className="flex items-center space-x-3 px-3 py-2 w-full text-left text-slate-700 hover:text-indigo-600 transition-colors duration-300 rounded-xl hover:bg-indigo-50">
+                    <User size={18} />
+                    <span>Profile</span>
+                  </Link>
+                </motion.div>
               </div>
 
               {/* Profile Section (Mobile) */}

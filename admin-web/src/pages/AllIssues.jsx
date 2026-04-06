@@ -47,12 +47,18 @@ const statusClasses = (status) => {
 };
 
 export default function AllIssues() {
-  const [issues, setIssues]           = useState([]);
-  const [crews, setCrews]             = useState([]);
+  const [issues, setIssues] = useState([]);
+  const [crews, setCrews] = useState([]);
   const [assignModalIssue, setAssignModalIssue] = useState(null);
   const [chosenCrewId, setChosenCrewId] = useState("");
-  const [activeTab, setActiveTab]     = useState("pending");
-  const token   = localStorage.getItem("token");
+  const [activeTab, setActiveTab] = useState("pending");
+
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterLocation, setFilterLocation] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+
+  const token = localStorage.getItem("token");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -82,16 +88,86 @@ export default function AllIssues() {
     { key: "rejected", label: "Rejected" },
   ];
 
-  const filtered = issues.filter(i => (i.status || "").replace(" ", "_") === activeTab);
+  const filtered = issues
+    .filter(i => (i.status || "").replace(" ", "_") === activeTab)
+    .filter(i => !filterCategory || (i.category || "").toLowerCase() === filterCategory.toLowerCase())
+    .filter(i => {
+      if (!filterLocation) return true;
+      const address = (i.location?.address || "").toLowerCase();
+      return address.includes(filterLocation.toLowerCase()) || (i.title || "").toLowerCase().includes(filterLocation.toLowerCase());
+    })
+    .filter(i => {
+      if (filterStartDate && !filterEndDate) {
+        return new Date(i.createdAt) >= new Date(filterStartDate);
+      }
+      if (!filterStartDate && filterEndDate) {
+        return new Date(i.createdAt) <= new Date(filterEndDate);
+      }
+      if (filterStartDate && filterEndDate) {
+        return new Date(i.createdAt) >= new Date(filterStartDate)
+          && new Date(i.createdAt) <= new Date(filterEndDate);
+      }
+      return true;
+    });
+
+  const uniqueCategories = [...new Set(issues.map((i) => i.category).filter(Boolean))];
+
+  const clearFilters = () => {
+    setFilterCategory("");
+    setFilterLocation("");
+    setFilterStartDate("");
+    setFilterEndDate("");
+  };
 
   return (
     <div className="p-4 md:p-8">
       <h1 className="text-3xl font-bold mb-6">Issue Management</h1>
 
+      {/* Filters */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+        <select
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
+          className="w-full p-2 rounded-lg border border-slate-300"
+        >
+          <option value="">All Issue Types</option>
+          {uniqueCategories.map((category) => (
+            <option key={category} value={category}>{category}</option>
+          ))}
+        </select>
+
+        <input
+          type="text"
+          value={filterLocation}
+          onChange={(e) => setFilterLocation(e.target.value)}
+          placeholder="Search location or title"
+          className="w-full p-2 rounded-lg border border-slate-300"
+        />
+
+        <input
+          type="date"
+          value={filterStartDate}
+          onChange={(e) => setFilterStartDate(e.target.value)}
+          className="w-full p-2 rounded-lg border border-slate-300"
+          placeholder="From date"
+        />
+
+        <input
+          type="date"
+          value={filterEndDate}
+          onChange={(e) => setFilterEndDate(e.target.value)}
+          className="w-full p-2 rounded-lg border border-slate-300"
+          placeholder="To date"
+        />
+      </div>
+      <div className="flex items-center gap-2 mb-6">
+        <button onClick={clearFilters} className="px-4 py-2 bg-slate-200 rounded-lg hover:bg-slate-300">Clear filters</button>
+        <span className="text-sm text-slate-500">Showing {filtered.length} / {issues.length} issues</span>
+      </div>
+
       {/* Tabs */}
       <div className="mb-6">
-        <div className="hidden md:flex gap-2 border-b">
-          {TABS.map(tab => (
+        <div className="hidden md:flex gap-2 border-b">          {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`px-4 py-2 font-semibold transition-colors text-sm ${
                 activeTab === tab.key ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-500 hover:text-slate-800"
