@@ -424,13 +424,15 @@ function ReportIssue() {
     finalData.append("address", address);
     images.forEach((img) => finalData.append("images", img));
     try {
+      // Don't explicitly set Content-Type header - let axios handle multipart/form-data
       await axios.post("http://localhost:5000/api/issues", finalData, {
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+        headers: { Authorization: `Bearer ${token}` }
       });
       alert("Issue Reported Successfully!");
       navigate("/my-reports");
     } catch (err) {
-      alert(err.response?.data?.message || "Submission failed");
+      console.error("Error submitting issue:", err);
+      alert(err.response?.data?.message || err.message || "Submission failed");
     } finally {
       setLoading(false);
     }

@@ -17,11 +17,14 @@ export default function Profile() {
     const loadProfile = async () => {
       try {
         const res = await getProfile();
-        setName(res.data.user.name || "");
-        setEmail(res.data.user.email || "");
-        setRole(res.data.user.role || "");
+        setName(res.data.user.name || localStorage.getItem("userName") || "");
+        setEmail(res.data.user.email || localStorage.getItem("userEmail") || "");
+        setRole(res.data.user.role || localStorage.getItem("userRole") || "");
       } catch (err) {
         setError(err.response?.data?.message || "Unable to load profile");
+        setName(localStorage.getItem("userName") || "");
+        setEmail(localStorage.getItem("userEmail") || "");
+        setRole(localStorage.getItem("userRole") || "");
       }
     };
     loadProfile();

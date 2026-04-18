@@ -1,25 +1,76 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { Menu, X, User, Home, FileText, LogOut, HardHat } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Menu, X, User, Home, FileText, HardHat, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getProfile } from "../services/api";
 
 function Navbar() {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profile, setProfile] = useState({
+    name: localStorage.getItem("userName") || "Crew Member",
+    email: localStorage.getItem("userEmail") || "",
+    role: localStorage.getItem("userRole") || "crew",
+  });
+  const profileRef = useRef(null);
+
+  useEffect(() => {
+    if (localStorage.getItem("token")) {
+      fetchProfile();
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isProfileOpen && profileRef.current && !profileRef.current.contains(event.target)) {
+        setIsProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isProfileOpen]);
+
+  const fetchProfile = async () => {
+    try {
+      const res = await getProfile();
+      const user = (res.data && res.data.user) || {};
+      const nextProfile = {
+        name: user.name || localStorage.getItem("userName") || "Crew Member",
+        email: user.email || localStorage.getItem("userEmail") || "",
+        role: user.role || localStorage.getItem("userRole") || "crew",
+      };
+      setProfile(nextProfile);
+      localStorage.setItem("userName", nextProfile.name);
+      localStorage.setItem("userRole", nextProfile.role);
+      if (nextProfile.email) {
+        localStorage.setItem("userEmail", nextProfile.email);
+      }
+    } catch (err) {
+      console.error("Failed to load profile:", err);
+    }
+  };
 
   const handleLogout = () => {
-    // clear all stored tokens and user info
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.removeItem("userName");
     localStorage.removeItem("userRole");
+    localStorage.removeItem("userEmail");
     navigate("/login");
     setIsMenuOpen(false);
+    setIsProfileOpen(false);
   };
 
-  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+  const toggleMenu = () => setIsMenuOpen((prev) => !prev);
+  const toggleProfile = () => {
+    setIsProfileOpen((prev) => {
+      const next = !prev;
+      if (next) fetchProfile();
+      return next;
+    });
+  };
 
-  // Animation variants
   const menuVariants = {
     closed: {
       opacity: 0,
@@ -27,8 +78,8 @@ function Navbar() {
       transition: {
         duration: 0.2,
         staggerChildren: 0.05,
-        staggerDirection: -1
-      }
+        staggerDirection: -1,
+      },
     },
     open: {
       opacity: 1,
@@ -36,9 +87,9 @@ function Navbar() {
       transition: {
         duration: 0.3,
         staggerChildren: 0.1,
-        delayChildren: 0.1
-      }
-    }
+        delayChildren: 0.1,
+      },
+    },
   };
 
   const itemVariants = {
@@ -46,36 +97,30 @@ function Navbar() {
       x: -20,
       opacity: 0,
       transition: {
-        duration: 0.2
-      }
+        duration: 0.2,
+      },
     },
     open: {
       x: 0,
       opacity: 1,
       transition: {
         duration: 0.3,
-        ease: "easeOut"
-      }
-    }
+        ease: "easeOut",
+      },
+    },
   };
 
   return (
     <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/30 border-b border-white/20 shadow-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <motion.div
-            className="flex-shrink-0"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
+          <motion.div className="flex-shrink-0" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Link to="/dashboard" className="text-2xl font-bold text-slate-800 hover:text-amber-600 transition-colors duration-300 flex items-center space-x-2">
               <HardHat size={28} className="text-amber-600" />
               <span>Crew Portal</span>
             </Link>
           </motion.div>
 
-          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Link to="/dashboard" className="flex items-center space-x-2 text-slate-700 hover:text-amber-600 transition-colors duration-300">
@@ -83,38 +128,82 @@ function Navbar() {
                 <span>Dashboard</span>
               </Link>
             </motion.div>
-
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Link to="/issues" className="flex items-center space-x-2 text-slate-700 hover:text-amber-600 transition-colors duration-300">
                 <FileText size={18} />
                 <span>Assigned Issues</span>
               </Link>
             </motion.div>
-
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Link to="/profile" className="flex items-center space-x-2 text-slate-700 hover:text-amber-600 transition-colors duration-300">
-                <User size={18} />
-                <span>Profile</span>
-              </Link>
-            </motion.div>
+            <motion.button
+              onClick={() => window.dispatchEvent(new Event("app-refresh"))}
+              className="flex items-center space-x-2 px-4 py-2 rounded-2xl font-medium text-slate-700 hover:text-amber-600 hover:bg-amber-50 transition-all duration-300"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Refresh data"
+            >
+              <RefreshCw size={18} />
+              <span>Refresh</span>
+            </motion.button>
           </div>
 
-          {/* Profile Section (Desktop) */}
-          <motion.div
-            className="hidden md:flex items-center space-x-3"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-              <User size={20} className="text-amber-600" />
-            </div>
-            <span className="text-slate-700 font-medium">
-              {localStorage.getItem("userName") || "Crew Member"} - {localStorage.getItem("userRole") || "crew"}
-            </span>
-          </motion.div>
+          <div ref={profileRef} className="hidden md:flex items-center relative">
+            <motion.div
+              onClick={toggleProfile}
+              className="flex items-center space-x-3 cursor-pointer rounded-2xl border border-transparent px-4 py-2 hover:border-amber-200 hover:bg-amber-50 transition-colors duration-200"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                <User size={20} className="text-amber-600" />
+              </div>
+              <div className="text-left">
+                <p className="text-slate-700 font-medium">{profile.name}</p>
+                <p className="text-xs text-slate-500">{profile.role}</p>
+              </div>
+            </motion.div>
+            {isProfileOpen && (
+              <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden z-50">
+                <div className="p-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                      <User size={24} className="text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{profile.name}</p>
+                      <p className="text-xs text-slate-500 uppercase tracking-wide">{profile.role}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-sm text-slate-700">
+                    <div>
+                      <span className="font-medium text-slate-900">Email:</span>
+                      <div className="mt-1 text-slate-600 break-all">{profile.email || "Not available"}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="border-t border-slate-100 p-3 space-y-2 bg-slate-50">
+                  <button
+                    onClick={() => {
+                      setIsProfileOpen(false);
+                      navigate("/profile");
+                    }}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white hover:border-slate-300 transition-colors duration-200"
+                  >
+                    Manage Profile
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full rounded-2xl bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors duration-200"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
-          {/* Mobile menu button */}
           <div className="md:hidden">
             <motion.button
               onClick={toggleMenu}
@@ -128,7 +217,6 @@ function Navbar() {
           </div>
         </div>
 
-        {/* Mobile Navigation */}
         <AnimatePresence>
           {isMenuOpen && (
             <motion.div
@@ -145,36 +233,55 @@ function Navbar() {
                     <span>Dashboard</span>
                   </Link>
                 </motion.div>
-
                 <motion.div variants={itemVariants}>
                   <Link to="/issues" onClick={() => setIsMenuOpen(false)} className="flex items-center space-x-3 px-3 py-2 text-slate-700 hover:text-amber-600 transition-colors duration-300">
                     <FileText size={18} />
                     <span>Assigned Issues</span>
                   </Link>
                 </motion.div>
-
                 <motion.div variants={itemVariants}>
-                  <Link to="/profile" onClick={() => setIsMenuOpen(false)} className="flex items-center space-x-3 px-3 py-2 text-slate-700 hover:text-amber-600 transition-colors duration-300">
-                    <User size={18} />
-                    <span>Profile</span>
-                  </Link>
+                  <button
+                    onClick={() => {
+                      window.dispatchEvent(new Event("app-refresh"));
+                      setIsMenuOpen(false);
+                    }}
+                    className="flex items-center space-x-3 px-3 py-2 text-slate-700 hover:text-amber-600 transition-colors duration-300 w-full text-left rounded-xl hover:bg-amber-50"
+                  >
+                    <RefreshCw size={18} />
+                    <span>Refresh</span>
+                  </button>
                 </motion.div>
               </div>
-
-              {/* Profile Section (Mobile) */}
-              <motion.div
-                className="px-3 py-2 border-t border-slate-200"
-                variants={itemVariants}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
-                    <User size={16} className="text-amber-600" />
+              <div className="border-t border-slate-200 px-3 py-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                    <User size={20} className="text-amber-600" />
                   </div>
-                  <span className="text-slate-700 font-medium">
-                    {localStorage.getItem("userName") || "Crew Member"} - {localStorage.getItem("userRole") || "crew"}
-                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{profile.name}</p>
+                    <p className="text-xs text-slate-500 uppercase tracking-wide">{profile.role}</p>
+                  </div>
                 </div>
-              </motion.div>
+                <div className="mb-3 text-sm text-slate-600 break-all">{profile.email || "Email not available"}</div>
+                <button
+                  onClick={() => {
+                    navigate("/profile");
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-amber-50 transition-colors duration-200"
+                >
+                  Manage Profile
+                </button>
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full mt-2 rounded-2xl bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors duration-200"
+                >
+                  Logout
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

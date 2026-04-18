@@ -1,5 +1,5 @@
 const CACHE_NAME = 'civic-ai-crew-v1';
-const URLS_TO_CACHE = ['/', '/index.html', '/vite.svg', '/manifest.webmanifest'];
+const URLS_TO_CACHE = ['/', '/index.html', '/Crew app logo.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', event => {
   event.waitUntil(

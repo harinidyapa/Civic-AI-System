@@ -8,7 +8,7 @@
   "theme_color": "#1d4ed8",
   "icons": [
     {
-      "src": "Admin app logo.png",
+      "src": "admin-app-logo.png",
       "sizes": "609x611",
       "type": "image/png",
       "purpose": "any maskable"

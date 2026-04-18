@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -8,6 +8,8 @@ import {
   TrendingUp, AlertTriangle, Brain, MapPin, Zap,
   Target, Activity, BarChart2, RefreshCw, ChevronUp, ChevronDown, Shield
 } from "lucide-react";
+import { MapContainer, TileLayer, CircleMarker, Tooltip as LeafletTooltip } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import { getAllIssues } from "../services/api";
 
 const CATEGORY_COLORS = {
@@ -124,6 +126,43 @@ function SectionHeader({ icon: Icon, title, accent = "#c8b06a" }) {
   );
 }
 
+function getHeatmapClusters(issues) {
+  const points = issues
+    .filter(i => i.location?.lat && i.location?.lng)
+    .map(i => ({
+      lat: Number(i.location.lat),
+      lng: Number(i.location.lng),
+      category: i.category || "Uncategorized"
+    }));
+
+  const buckets = {};
+  points.forEach((point) => {
+    const latKey = Math.round(point.lat * 1000) / 1000;
+    const lngKey = Math.round(point.lng * 1000) / 1000;
+    const key = `${latKey}|${lngKey}`;
+    if (!buckets[key]) {
+      buckets[key] = { lat: latKey, lng: lngKey, count: 0, categories: {}, example: point };
+    }
+    buckets[key].count += 1;
+    buckets[key].categories[point.category] = (buckets[key].categories[point.category] || 0) + 1;
+  });
+
+  return Object.values(buckets)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 16);
+}
+
+function getMapCenter(issues) {
+  const locations = issues.filter(i => i.location?.lat && i.location?.lng);
+  if (!locations.length) return [20.5, 78.9];
+  const sum = locations.reduce((acc, issue) => {
+    acc.lat += Number(issue.location.lat);
+    acc.lng += Number(issue.location.lng);
+    return acc;
+  }, { lat: 0, lng: 0 });
+  return [sum.lat / locations.length, sum.lng / locations.length];
+}
+
 function Panel({ children, style = {}, delay = 0 }) {
   return (
     <motion.div
@@ -197,13 +236,28 @@ export default function Analytics() {
   const isTablet  = useIsTablet();
   const token = localStorage.getItem("token");
 
-  const fetchIssues = async () => {
+  const fetchIssues = useCallback(async () => {
     setLoading(true);
-    try { const res = await getAllIssues(token); setIssues(res.data); }
-    catch (e) { setError("Failed to load issues"); }
-    finally { setLoading(false); }
-  };
-  useEffect(() => { fetchIssues(); }, []);
+    try {
+      const res = await getAllIssues(token);
+      setIssues(res.data);
+      setError(null);
+    } catch (e) {
+      setError("Failed to load issues");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchIssues();
+  }, [fetchIssues]);
+
+  useEffect(() => {
+    const handleRefresh = () => fetchIssues();
+    window.addEventListener("app-refresh", handleRefresh);
+    return () => window.removeEventListener("app-refresh", handleRefresh);
+  }, [fetchIssues]);
 
   const analytics = useMemo(() => {
     if (!issues.length) return null;
@@ -257,6 +311,9 @@ export default function Analytics() {
       recentCount: recentIssues.length, avgConfidence
     };
   }, [issues]);
+
+  const heatmapClusters = useMemo(() => getHeatmapClusters(issues), [issues]);
+  const mapCenter = useMemo(() => getMapCenter(issues), [issues]);
 
   const pageStyle = {
     minHeight: "100vh",
@@ -392,6 +449,65 @@ export default function Analytics() {
           }
         </Panel>
       </div>
+
+      <Panel delay={0.4} style={{ marginBottom: mb }}>
+        <SectionHeader icon={MapPin} title="Geospatial Hotspot Map" accent="#c05050" />
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16 }}>
+          <div style={{ flex: 1, minHeight: 320, borderRadius: 16, overflow: "hidden", background: "#0f172a" }}>
+            <MapContainer center={mapCenter} zoom={isMobile ? 6 : 8} scrollWheelZoom={true} style={{ width: "100%", height: "100%" }}>
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              {heatmapClusters.map((cluster, idx) => {
+                const intensity = Math.min(1, cluster.count / 10);
+                const color = intensity > 0.7 ? "#d9534f" : intensity > 0.4 ? "#f0ad4e" : "#5bc0de";
+                return (
+                  <CircleMarker
+                    key={idx}
+                    center={[cluster.lat, cluster.lng]}
+                    radius={8 + cluster.count * 2}
+                    pathOptions={{
+                      color,
+                      fillColor: color,
+                      fillOpacity: 0.35,
+                      weight: 1
+                    }}
+                  >
+                    <LeafletTooltip direction="top" offset={[0, -8]} opacity={0.9}>
+                      <div style={{ fontSize: 12, lineHeight: 1.3 }}>
+                        <strong>{cluster.count} issue{cluster.count > 1 ? "s" : ""}</strong><br />
+                        {Object.entries(cluster.categories).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `${name}: ${value}`).join(" • ")}
+                      </div>
+                    </LeafletTooltip>
+                  </CircleMarker>
+                );
+              })}
+            </MapContainer>
+          </div>
+
+          <div style={{ width: isMobile ? "100%" : 300, display: "grid", gap: 12 }}>
+            <div style={{ padding: 16, borderRadius: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div style={{ fontSize: 12, color: "#8090a8", fontWeight: 700, marginBottom: 8 }}>MAP SUMMARY</div>
+              <div style={{ fontSize: 16, color: "#e8eaf0", fontWeight: 700, marginBottom: 10 }}>{heatmapClusters.length} hotspot zones</div>
+              <div style={{ fontSize: 13, color: "#b0bed6", lineHeight: 1.6 }}>
+                The map aggregates nearby issue reports into dynamic hotspots so you can quickly see where crew attention is needed most.
+              </div>
+            </div>
+            <div style={{ padding: 16, borderRadius: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div style={{ fontSize: 12, color: "#8090a8", fontWeight: 700, marginBottom: 8 }}>TOP LOCATIONS</div>
+              {heatmapClusters.slice(0, 5).map((cluster, index) => (
+                <div key={index} style={{ marginBottom: index < 4 ? 12 : 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <span style={{ color: "#e8eaf0", fontWeight: 700, fontSize: 13 }}>Zone {index + 1}</span>
+                    <span style={{ color: "#f0ad4e", fontWeight: 700, fontSize: 13 }}>{cluster.count}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#aac0d8", marginTop: 4 }}>
+                    {Object.entries(cluster.categories).sort((a,b)=>b[1]-a[1]).map(([name, value]) => `${name} (${value})`).join(" • ")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Panel>
 
       {/* ── Weekly Trend ── */}
       <Panel delay={0.4} style={{ marginBottom: mb }}>

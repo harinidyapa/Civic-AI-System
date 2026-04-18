@@ -30,7 +30,12 @@ function RAGSuggestionPanel({ issueId }) {
     } catch (e) {
       console.error("RAG suggestion request failed:", e);
       const errorMessage = e?.response?.data?.error || e?.message || "Could not load suggestion. Try again.";
-      setError(errorMessage);
+      // Check for quota exceeded or service unavailable
+      if (errorMessage.includes("quota") || errorMessage.includes("429") || errorMessage.includes("unreachable")) {
+        setError("AI service temporarily unavailable. Showing standard resolution procedure.");
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -76,7 +81,16 @@ function RAGSuggestionPanel({ issueId }) {
             <span style={{ fontSize: 13, fontWeight: 800, color: "#c4b5fd", letterSpacing: 0.5 }}>
               AI RESOLUTION GUIDE
             </span>
-            {suggestion?.similar_count > 0 && (
+            {suggestion?.note && (
+              <span style={{
+                marginLeft: 8, fontSize: 10, color: "#fbbf24",
+                background: "rgba(251,191,36,0.1)", padding: "2px 7px",
+                borderRadius: 20, border: "1px solid rgba(251,191,36,0.2)"
+              }}>
+                Standard Procedure
+              </span>
+            )}
+            {suggestion?.similar_count > 0 && !suggestion?.note && (
               <span style={{
                 marginLeft: 8, fontSize: 10, color: "#7c6fad",
                 background: "rgba(139,92,246,0.1)", padding: "2px 7px",
@@ -261,6 +275,13 @@ export default function IssueDetail() {
     setIssue(found);
   };
 
+  const openInGoogleMaps = () => {
+    if (issue?.location?.lat && issue?.location?.lng) {
+      const url = `https://www.google.com/maps?q=${issue.location.lat},${issue.location.lng}`;
+      window.open(url, '_blank');
+    }
+  };
+
   // ── NEW: fetch RAG suggestion and pre-fill resolution plan ──
   const fetchRAGResolutionPlan = async () => {
     setRagPlanLoading(true);
@@ -368,7 +389,15 @@ export default function IssueDetail() {
 
           <div className="text-sm text-slate-600 mb-2">
             <p>Category: <span className="font-medium">{issue.category}</span></p>
-            <p>Location: <span className="font-medium">{issue.location?.address || `${issue.location?.lat?.toFixed(4)}, ${issue.location?.lng?.toFixed(4)}`}</span></p>
+            <p>Location: 
+              <span 
+                className="font-medium text-blue-600 hover:text-blue-800 cursor-pointer underline decoration-dotted hover:decoration-solid transition-all duration-200"
+                onClick={openInGoogleMaps}
+                title="Click to open in Google Maps"
+              >
+                {issue.location?.address || `${issue.location?.lat?.toFixed(4)}, ${issue.location?.lng?.toFixed(4)}`}
+              </span>
+            </p>
             {issue.urgencyLabel && <p>Urgency: <span className="font-medium">{issue.urgencyLabel}</span></p>}
           </div>
 

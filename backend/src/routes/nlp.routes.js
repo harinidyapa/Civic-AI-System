@@ -7,8 +7,7 @@ import {
   batchAnalyzeText,
   nlpStatus
 } from "../controllers/nlp.controller.js";
-import { protect } from "../middleware/auth.middleware.js";
-import { authorizeRoles } from "../middleware/role.middleware.js";
+import { protect, authorizeRoles } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 

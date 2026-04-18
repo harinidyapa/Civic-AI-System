@@ -21,12 +21,15 @@ const Profile = ({ setIsLoggedIn }) => {
     const fetchProfile = async () => {
       try {
         const { data } = await getProfile();
-        setName(data.user.name || "");
-        setEmail(data.user.email || "");
-        setRole(data.user.role || "");
+        setName(data.user.name || localStorage.getItem("userName") || "");
+        setEmail(data.user.email || localStorage.getItem("userEmail") || "");
+        setRole(data.user.role || localStorage.getItem("userRole") || "");
       } catch (err) {
         console.error(err);
         setError(err.response?.data?.message || "Failed to load profile");
+        setName(localStorage.getItem("userName") || "");
+        setEmail(localStorage.getItem("userEmail") || "");
+        setRole(localStorage.getItem("userRole") || "");
       }
     };
 

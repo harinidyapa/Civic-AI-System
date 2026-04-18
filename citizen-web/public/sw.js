@@ -1,5 +1,5 @@
 const CACHE_NAME = 'civic-ai-citizen-v1';
-const URLS_TO_CACHE = ['/', '/index.html', '/vite.svg', '/manifest.webmanifest'];
+const URLS_TO_CACHE = ['/', '/index.html', '/Citizen app logo.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', event => {
   event.waitUntil(

@@ -1,6 +1,5 @@
 import express from "express";
-import { protect } from "../middleware/auth.middleware.js";
-import { authorizeRoles } from "../middleware/role.middleware.js";
+import { protect, authorizeRoles } from "../middleware/auth.middleware.js";
 import User from "../models/User.model.js";
 
 const router = express.Router();

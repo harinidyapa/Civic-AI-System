@@ -4,6 +4,14 @@ const API = axios.create({
   baseURL: "http://localhost:5000/api", // match your backend port
 });
 
+API.interceptors.request.use((req) => {
+  const token = localStorage.getItem("token");
+  if (token && req.headers) {
+    req.headers.Authorization = `Bearer ${token}`;
+  }
+  return req;
+});
+
 // Login function (password flow)
 export const loginUser = async (identifier, password) => {
   return API.post("/auth/login", { identifier, password });
@@ -51,35 +59,13 @@ export const submitIssue = async (issueData, token) => {
 };
 
 export const getMyReports = () => {
-  const token = localStorage.getItem("token");
-
-  return axios.get("http://localhost:5000/api/issues/my", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  return API.get("/issues/my");
 };
 
 export const getIssueDetail = (issueId) => {
-  const token = localStorage.getItem("token");
-
-  return axios.get(`http://localhost:5000/api/issues/${issueId}/detail`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  return API.get(`/issues/${issueId}/detail`);
 };
 
 export const markLogsAsViewed = (issueId) => {
-  const token = localStorage.getItem("token");
-
-  return axios.put(
-    `http://localhost:5000/api/issues/${issueId}/logs/viewed`,
-    {},
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
+  return API.put(`/issues/${issueId}/logs/viewed`, {});
 };

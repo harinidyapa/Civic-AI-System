@@ -10,8 +10,7 @@ import {
   markLogsAsViewed
 } from "../controllers/issue.controller.js";
 import { getResolutionSuggestion } from "../controllers/rag.controller.js";
-import { protect } from "../middleware/auth.middleware.js";
-import { authorizeRoles } from "../middleware/role.middleware.js";
+import { protect, authorizeRoles } from "../middleware/auth.middleware.js";
 import multer from "multer";
 
 const router = express.Router();
