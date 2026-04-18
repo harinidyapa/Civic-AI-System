@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getAllIssues, assignIssue, getCrews } from "../services/api";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 
 function SeverityBar({ score, compact = false }) {
   const s = Math.min(5, Math.max(1, score || 1));
@@ -47,24 +47,51 @@ const statusClasses = (status) => {
 };
 
 export default function AllIssues() {
-  const [issues, setIssues]           = useState([]);
-  const [crews, setCrews]             = useState([]);
+  const [issues, setIssues] = useState([]);
+  const [crews, setCrews] = useState([]);
   const [assignModalIssue, setAssignModalIssue] = useState(null);
   const [chosenCrewId, setChosenCrewId] = useState("");
-  const [activeTab, setActiveTab]     = useState("pending");
-  const token   = localStorage.getItem("token");
+  const [activeTab, setActiveTab] = useState("pending");
+
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterLocation, setFilterLocation] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
+  const token = localStorage.getItem("token");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [allRes, crewsRes] = await Promise.all([getAllIssues(token, false), getCrews(token)]);
-        setIssues(allRes.data);
-        setCrews(crewsRes.data);
-      } catch (err) { alert("Failed to fetch data"); }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      const [allRes, crewsRes] = await Promise.all([getAllIssues(token, false), getCrews(token)]);
+      setIssues(allRes.data);
+      setCrews(crewsRes.data);
+    } catch (err) {
+      alert("Failed to fetch data");
+    } finally {
+      setRefreshing(false);
+    }
   }, [token]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    const handleRefresh = () => fetchData();
+    window.addEventListener("app-refresh", handleRefresh);
+    return () => window.removeEventListener("app-refresh", handleRefresh);
+  }, [fetchData]);
+
+  // Reset to page 1 when tab or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, filterCategory, filterLocation, filterStartDate, filterEndDate]);
 
   const handleAssign = async (issueId, crewId) => {
     try {
@@ -82,16 +109,102 @@ export default function AllIssues() {
     { key: "rejected", label: "Rejected" },
   ];
 
-  const filtered = issues.filter(i => (i.status || "").replace(" ", "_") === activeTab);
+  const filtered = issues
+    .filter(i => (i.status || "").replace(" ", "_") === activeTab)
+    .filter(i => !filterCategory || (i.category || "").toLowerCase() === filterCategory.toLowerCase())
+    .filter(i => {
+      if (!filterLocation) return true;
+      const address = (i.location?.address || "").toLowerCase();
+      return address.includes(filterLocation.toLowerCase()) || (i.title || "").toLowerCase().includes(filterLocation.toLowerCase());
+    })
+    .filter(i => {
+      if (filterStartDate && !filterEndDate) {
+        return new Date(i.createdAt) >= new Date(filterStartDate);
+      }
+      if (!filterStartDate && filterEndDate) {
+        return new Date(i.createdAt) <= new Date(filterEndDate);
+      }
+      if (filterStartDate && filterEndDate) {
+        return new Date(i.createdAt) >= new Date(filterStartDate)
+          && new Date(i.createdAt) <= new Date(filterEndDate);
+      }
+      return true;
+    });
+
+  const uniqueCategories = [...new Set(issues.map((i) => i.category).filter(Boolean))];
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedIssues = filtered.slice(startIndex, endIndex);
+
+  const clearFilters = () => {
+    setFilterCategory("");
+    setFilterLocation("");
+    setFilterStartDate("");
+    setFilterEndDate("");
+  };
 
   return (
     <div className="p-4 md:p-8">
-      <h1 className="text-3xl font-bold mb-6">Issue Management</h1>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+        <h1 className="text-3xl font-bold">Issue Management</h1>
+        <button
+          onClick={fetchData}
+          disabled={refreshing}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 transition-colors duration-200 disabled:opacity-60"
+        >
+          <RefreshCw size={18} />
+          {refreshing ? "Refreshing..." : "Refresh"}
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+        <select
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
+          className="w-full p-2 rounded-lg border border-slate-300"
+        >
+          <option value="">All Issue Types</option>
+          {uniqueCategories.map((category) => (
+            <option key={category} value={category}>{category}</option>
+          ))}
+        </select>
+
+        <input
+          type="text"
+          value={filterLocation}
+          onChange={(e) => setFilterLocation(e.target.value)}
+          placeholder="Search location or title"
+          className="w-full p-2 rounded-lg border border-slate-300"
+        />
+
+        <input
+          type="date"
+          value={filterStartDate}
+          onChange={(e) => setFilterStartDate(e.target.value)}
+          className="w-full p-2 rounded-lg border border-slate-300"
+          placeholder="From date"
+        />
+
+        <input
+          type="date"
+          value={filterEndDate}
+          onChange={(e) => setFilterEndDate(e.target.value)}
+          className="w-full p-2 rounded-lg border border-slate-300"
+          placeholder="To date"
+        />
+      </div>
+      <div className="flex items-center gap-2 mb-6">
+        <button onClick={clearFilters} className="px-4 py-2 bg-slate-200 rounded-lg hover:bg-slate-300">Clear filters</button>
+        <span className="text-sm text-slate-500">Showing {startIndex + 1}-{Math.min(endIndex, filtered.length)} of {filtered.length} / {issues.length} issues</span>
+      </div>
 
       {/* Tabs */}
       <div className="mb-6">
-        <div className="hidden md:flex gap-2 border-b">
-          {TABS.map(tab => (
+        <div className="hidden md:flex gap-2 border-b">          {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`px-4 py-2 font-semibold transition-colors text-sm ${
                 activeTab === tab.key ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-500 hover:text-slate-800"
@@ -107,10 +220,10 @@ export default function AllIssues() {
       </div>
 
       {/* Issue cards */}
-      <div className="grid gap-4">
-        {filtered.length === 0 ? (
+      <div className="grid gap-4 mb-6">
+        {paginatedIssues.length === 0 ? (
           <div className="text-center py-12 text-slate-500">No issues in this category</div>
-        ) : filtered.map(issue => {
+        ) : paginatedIssues.map(issue => {
           const severity = issue.aiSeverityScore || issue.severityScore || 1;
           return (
             <div key={issue._id} onClick={() => navigate(`/issues/${issue._id}`)}
@@ -165,6 +278,43 @@ export default function AllIssues() {
           );
         })}
       </div>
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mb-6 p-4 bg-slate-50 rounded-lg">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Previous
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-600">Page</span>
+            <input
+              type="number"
+              min="1"
+              max={totalPages}
+              value={currentPage}
+              onChange={(e) => {
+                const page = parseInt(e.target.value) || 1;
+                if (page >= 1 && page <= totalPages) setCurrentPage(page);
+              }}
+              className="w-12 px-2 py-1 rounded-lg border border-slate-300 text-center"
+            />
+            <span className="text-sm text-slate-600">of {totalPages}</span>
+          </div>
+
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Next
+          </button>
+        </div>
+      )}
 
       {/* Assign modal */}
       {assignModalIssue && (

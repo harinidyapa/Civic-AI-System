@@ -24,6 +24,14 @@ os.makedirs(TRAINING_DATA_DIR, exist_ok=True)
 
 app = Flask(__name__)
 
+# Enable CORS for frontend clients on a separate port
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    return response
+
 # ──────────────────────────────────────────────
 # EXISTING ENDPOINTS (unchanged)
 # ──────────────────────────────────────────────
@@ -150,13 +158,24 @@ def analyze_and_enhance():
         return jsonify({"error": "Image required"}), 400
 
     try:
-        image_bytes = base64.b64decode(image_base64)
+        # Decode image
+        try:
+            image_bytes = base64.b64decode(image_base64)
+            print(f"[ANALYZE] Image decoded: {len(image_bytes)} bytes")
+        except Exception as decode_err:
+            print(f"[ERROR] Base64 decode failed: {decode_err}")
+            return jsonify({"error": "Invalid image format"}), 400
 
         # Step 1: CV - detect category from image
+        print(f"[ANALYZE] Classifying image...")
         category, raw_confidence = classify_image(image_bytes)
+        print(f"[ANALYZE] Classification result: {category} ({raw_confidence:.2%})")
+        
         confidence_percent = scale_confidence(raw_confidence)
         severity = calculate_severity(category, confidence_percent, image_bytes)
         is_miscategorized = confidence_percent < 50
+        
+        print(f"[ANALYZE] Confidence: {confidence_percent:.2%}, Severity: {severity}")
 
         # Step 2: NLP - build enhanced description
         # If user already typed something, enhance that; otherwise generate from category
@@ -189,8 +208,10 @@ def analyze_and_enhance():
         })
 
     except Exception as e:
-        print(f"analyze-and-enhance error: {e}")
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        print(f"[ERROR] analyze-and-enhance error: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e), "type": type(e).__name__}), 500
 
 
 def _build_enhanced_description(category, confidence, user_text, text_analysis):
@@ -358,7 +379,68 @@ def training_stats():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "AI Service is running", "version": "2.0"}), 200
+    """Health check endpoint with diagnostics."""
+    import os
+    return jsonify({
+        "status": "AI Service is running",
+        "version": "2.0",
+        "gemini_api_configured": bool(os.getenv("GEMINI_API_KEY")),
+        "cloudinary_configured": bool(os.getenv("CLOUDINARY_CLOUD_NAME"))
+    }), 200
+
+
+@app.route("/debug/classify", methods=["POST"])
+def debug_classify():
+    """
+    Debug endpoint to test image classification directly.
+    Useful for troubleshooting categorization issues.
+    
+    Request:
+    {
+        "image": "<base64 image data>",
+        "verbose": true  // optional, for detailed logs
+    }
+    """
+    data = request.json
+    image_base64 = data.get("image")
+    verbose = data.get("verbose", False)
+
+    if not image_base64:
+        return jsonify({"error": "Image required"}), 400
+
+    try:
+        if verbose:
+            print("[DEBUG] Starting classification test...")
+        
+        image_bytes = base64.b64decode(image_base64)
+        
+        if verbose:
+            print(f"[DEBUG] Image size: {len(image_bytes)} bytes")
+        
+        # Test classification
+        category, confidence = classify_image(image_bytes)
+        
+        if verbose:
+            print(f"[DEBUG] Classification complete: {category} ({confidence:.2%})")
+        
+        return jsonify({
+            "predicted_category": category,
+            "confidence": float(confidence),
+            "confidence_percent": f"{confidence*100:.1f}%",
+            "success": True
+        })
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"[DEBUG ERROR]\n{error_trace}")
+        
+        return jsonify({
+            "error": str(e),
+            "type": type(e).__name__,
+            "trace": error_trace,
+            "success": False
+        }), 500
 
 @app.route("/rag-suggest", methods=["POST"])
 def rag_suggest():
@@ -451,6 +533,24 @@ Nothing else. Be specific and practical."""
 
     except Exception as e:
         print(f"RAG suggest error: {e}")
+        # Check if it's a quota exceeded error
+        if "429" in str(e) or "quota" in str(e).lower() or "exceeded" in str(e).lower():
+            # Return a fallback suggestion when quota is exceeded
+            return jsonify({
+                "summary": "Standard resolution procedure for this issue type",
+                "steps": [
+                    "Assess the situation and ensure safety",
+                    "Gather necessary tools and materials",
+                    "Perform the repair or replacement",
+                    "Test the fix and clean up the area",
+                    "Document the resolution"
+                ],
+                "materials": ["Standard repair kit", "Safety equipment"],
+                "estimated_time": "1-2 hours",
+                "safety_note": "Follow all safety protocols and wear appropriate protective gear",
+                "based_on": 0,
+                "note": "AI service quota exceeded - showing standard procedure"
+            })
         return jsonify({"error": str(e)}), 500
     
     # Add this endpoint to ai-services/app.py (before the if __name__ == "__main__" block)
@@ -498,8 +598,7 @@ Return ONLY the rewritten description. No preamble, no quotes, no explanation.""
         return jsonify({"suggestion": None}), 200
 
 if __name__ == "__main__":
-    app.run(port=8000, debug=True)
-
+    app.run(host="0.0.0.0", port=8000, debug=True)
 
 # ──────────────────────────────────────────────
 # RAG ENDPOINT: Resolution suggestion for crew

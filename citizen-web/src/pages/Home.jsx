@@ -1,43 +1,47 @@
 import { Link } from "react-router-dom";
-import { FileText, AlertTriangle, CheckCircle, Clock, MapPin, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FileText, AlertTriangle, CheckCircle, Clock, MapPin, Plus, Brain, Zap, Users } from "lucide-react";
 import { motion } from "framer-motion";
+import { getMyReports } from "../services/api";
 
 function Home() {
-  // Mock data for demonstration - in real app, this would come from API
-  const recentReports = [
-    {
-      id: 1,
-      title: "Pothole on Main Street",
-      status: "In Progress",
-      urgency: "Medium",
-      date: "2026-02-20",
-      location: "Main St & 5th Ave"
-    },
-    {
-      id: 2,
-      title: "Broken Streetlight",
-      status: "Resolved",
-      urgency: "Low",
-      date: "2026-02-18",
-      location: "Park Ave & Elm St"
-    },
-    {
-      id: 3,
-      title: "Garbage Pile",
-      status: "Pending",
-      urgency: "High",
-      date: "2026-02-22",
-      location: "River Rd & Oak St"
-    }
-  ];
+  const [recentReports, setRecentReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(true);
+  const [reportError, setReportError] = useState(null);
+
+  useEffect(() => {
+    const fetchReports = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setLoadingReports(false);
+        return;
+      }
+
+      try {
+        setLoadingReports(true);
+        const { data } = await getMyReports();
+        setRecentReports(Array.isArray(data) ? data.slice(0, 6) : []);
+        setReportError(null);
+      } catch (error) {
+        console.error("Failed to load report status:", error);
+        setReportError("Unable to load your reports right now.");
+        setRecentReports([]);
+      } finally {
+        setLoadingReports(false);
+      }
+    };
+
+    fetchReports();
+  }, []);
 
   const getStatusIcon = (status) => {
-    switch (status) {
-      case "Resolved":
+    switch (status?.toLowerCase()) {
+      case "resolved":
         return <CheckCircle className="text-green-500" size={20} />;
-      case "In Progress":
+      case "in_progress":
+      case "in progress":
         return <Clock className="text-blue-500" size={20} />;
-      case "Pending":
+      case "pending":
         return <AlertTriangle className="text-orange-500" size={20} />;
       default:
         return <Clock className="text-gray-500" size={20} />;
@@ -45,12 +49,13 @@ function Home() {
   };
 
   const getUrgencyColor = (urgency) => {
-    switch (urgency) {
-      case "High":
+    const label = (urgency || "").toLowerCase();
+    switch (label) {
+      case "high":
         return "text-red-600 bg-red-50";
-      case "Medium":
+      case "medium":
         return "text-yellow-600 bg-yellow-50";
-      case "Low":
+      case "low":
         return "text-green-600 bg-green-50";
       default:
         return "text-gray-600 bg-gray-50";
@@ -116,24 +121,32 @@ function Home() {
             initial="hidden"
             animate="visible"
           >
+            <motion.div
+              className="flex items-center justify-center gap-4 mb-6"
+              variants={itemVariants}
+            >
+              <Brain className="text-purple-600" size={40} />
+              <Zap className="text-blue-600" size={36} />
+              <Users className="text-emerald-600" size={38} />
+            </motion.div>
             <motion.h1
               className="text-5xl md:text-6xl font-bold text-slate-800 mb-6"
               variants={itemVariants}
             >
-              Welcome to <span className="text-emerald-600">Civic AI</span>
+              Welcome to <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-600 bg-clip-text text-transparent">Civic AI</span>
             </motion.h1>
             <motion.p
               className="text-xl text-slate-600 mb-12 max-w-3xl mx-auto"
               variants={itemVariants}
             >
-              Report public issues in your city and track their resolution in real time with our AI-powered civic management system.
+              Join our AI-powered community to report public issues and track their resolution in real time. Together, we make our city better.
             </motion.p>
 
             {/* CTA Button */}
             <motion.div variants={itemVariants}>
               <Link
                 to="/report"
-                className="inline-flex items-center space-x-3 bg-emerald-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-emerald-700 transform hover:scale-105 transition-all duration-300 shadow-xl"
+                className="inline-flex items-center space-x-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold hover:from-emerald-700 hover:to-teal-700 transform hover:scale-105 transition-all duration-300 shadow-xl"
               >
                 <Plus size={24} />
                 <span>Report an Issue</span>
@@ -165,44 +178,65 @@ function Home() {
           <p className="text-slate-600">Track the progress of issues you've reported</p>
         </motion.div>
 
-        <motion.div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-        >
-          {recentReports.map((report, index) => (
-            <motion.div
-              key={report.id}
-              variants={cardVariants}
-              whileHover="hover"
-              className="backdrop-blur-md bg-white/30 border border-white/20 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  {getStatusIcon(report.status)}
-                  <span className="font-semibold text-slate-800">{report.status}</span>
+        {loadingReports ? (
+          <div className="grid place-items-center py-16">
+            <div className="text-center text-slate-600">
+              <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4"></div>
+              <p>Loading your report status...</p>
+            </div>
+          </div>
+        ) : reportError ? (
+          <div className="bg-red-50 border border-red-200 rounded-3xl p-8 text-center">
+            <p className="text-red-700 text-lg font-semibold mb-2">{reportError}</p>
+            <p className="text-slate-600">Please refresh the page or try again later.</p>
+          </div>
+        ) : recentReports.length === 0 ? (
+          <div className="bg-white/60 border border-slate-200 rounded-3xl p-10 text-center">
+            <p className="text-slate-700 text-xl font-semibold mb-2">No reports found</p>
+            <p className="text-slate-500">Submit an issue to see it here.</p>
+          </div>
+        ) : (
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+          >
+            {recentReports.map((report) => (
+              <motion.div
+                key={report._id}
+                variants={cardVariants}
+                whileHover="hover"
+                className="backdrop-blur-md bg-white/30 border border-white/20 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    {getStatusIcon(report.status)}
+                    <span className="font-semibold text-slate-800">
+                      {report.status?.replace(/_/g, " ") || "Pending"}
+                    </span>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getUrgencyColor(report.urgencyLabel || report.urgency)}`}>
+                    {report.urgencyLabel || report.urgency || "Unknown"}
+                  </span>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getUrgencyColor(report.urgency)}`}>
-                  {report.urgency}
-                </span>
-              </div>
 
-              <h3 className="text-lg font-semibold text-slate-800 mb-2">{report.title}</h3>
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">{report.title}</h3>
 
-              <div className="flex items-center space-x-2 text-slate-600 mb-2">
-                <MapPin size={16} />
-                <span className="text-sm">{report.location}</span>
-              </div>
+                <div className="flex items-center space-x-2 text-slate-600 mb-2">
+                  <MapPin size={16} />
+                  <span className="text-sm">{report.location?.address || "Location not available"}</span>
+                </div>
 
-              <div className="flex items-center space-x-2 text-slate-500">
-                <FileText size={16} />
-                <span className="text-sm">Reported on {report.date}</span>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
+                <div className="flex items-center space-x-2 text-slate-500">
+                  <FileText size={16} />
+                  <span className="text-sm">Reported on {new Date(report.createdAt).toLocaleDateString()}</span>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
 
         {/* View All Reports Button */}
         <motion.div
@@ -238,8 +272,8 @@ function Home() {
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <h2 className="text-3xl font-bold text-slate-800 mb-4">How It Works</h2>
-            <p className="text-slate-600">Our AI-powered system makes civic reporting simple and effective</p>
+            <h2 className="text-3xl font-bold text-slate-800 mb-4">AI-Powered Civic Engagement</h2>
+            <p className="text-slate-600">Experience the future of community-driven issue resolution</p>
           </motion.div>
 
           <motion.div
@@ -254,11 +288,11 @@ function Home() {
               whileHover="hover"
               className="backdrop-blur-md bg-white/30 border border-white/20 rounded-2xl p-6 text-center shadow-xl"
             >
-              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="text-emerald-600" size={32} />
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <FileText className="text-blue-600" size={32} />
               </div>
-              <h3 className="text-xl font-semibold text-slate-800 mb-2">Report Issues</h3>
-              <p className="text-slate-600">Spotted a pothole or broken streetlight? Report it instantly with photos and details.</p>
+              <h3 className="text-xl font-semibold text-slate-800 mb-2">Smart Reporting</h3>
+              <p className="text-slate-600">AI-enhanced issue categorization and automatic severity assessment for faster response.</p>
             </motion.div>
 
             <motion.div
@@ -266,11 +300,11 @@ function Home() {
               whileHover="hover"
               className="backdrop-blur-md bg-white/30 border border-white/20 rounded-2xl p-6 text-center shadow-xl"
             >
-              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="text-emerald-600" size={32} />
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-violet-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <Brain className="text-purple-600" size={32} />
               </div>
               <h3 className="text-xl font-semibold text-slate-800 mb-2">AI Analysis</h3>
-              <p className="text-slate-600">Our AI automatically categorizes and prioritizes issues for faster resolution.</p>
+              <p className="text-slate-600">Machine learning algorithms analyze images and text to prioritize and route issues efficiently.</p>
             </motion.div>
 
             <motion.div
@@ -278,11 +312,11 @@ function Home() {
               whileHover="hover"
               className="backdrop-blur-md bg-white/30 border border-white/20 rounded-2xl p-6 text-center shadow-xl"
             >
-              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Clock className="text-emerald-600" size={32} />
+              <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <Zap className="text-emerald-600" size={32} />
               </div>
-              <h3 className="text-xl font-semibold text-slate-800 mb-2">Track Progress</h3>
-              <p className="text-slate-600">Monitor the status of your reports and see real-time updates on resolution.</p>
+              <h3 className="text-xl font-semibold text-slate-800 mb-2">Real-Time Tracking</h3>
+              <p className="text-slate-600">Live updates on issue status with predictive resolution timelines powered by AI insights.</p>
             </motion.div>
           </motion.div>
         </div>

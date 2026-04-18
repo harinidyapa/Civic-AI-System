@@ -1,7 +1,7 @@
 import Issue from "../models/Issue.model.js";
 import axios from "axios";
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://127.0.0.1:8000";
 
 /**
  * RAG-based resolution suggestion for crew.
@@ -71,12 +71,24 @@ export const getResolutionSuggestion = async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error("RAG suggestion error:", error.message);
+    console.error("❌ RAG suggestion error:", error.message);
+    if (error.response?.data) {
+      console.error("   Response from AI service:", error.response.data);
+    }
+    if (error.code === "ECONNREFUSED") {
+      console.error(`\n⚠️  CRITICAL: Cannot connect to AI Service at ${AI_SERVICE_URL}`);
+      console.error("   Please ensure:");
+      console.error("   1. Navigate to ai-services folder: cd ai-services");
+      console.error("   2. Run: python app.py");
+      console.error("   3. Check that Flask server starts on port 8000\n");
+    }
     // Non-fatal — return empty suggestion rather than crashing
     return res.status(200).json({
       suggestion: null,
       similar_count: 0,
-      error: "Could not generate suggestion at this time"
+      error: error.code === "ECONNREFUSED" 
+        ? `AI service unreachable at ${AI_SERVICE_URL}. Check if Flask app is running.`
+        : error.message || "Could not generate suggestion at this time"
     });
   }
 };

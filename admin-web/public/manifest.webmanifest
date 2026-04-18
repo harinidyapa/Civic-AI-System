@@ -1,0 +1,17 @@
+{
+  "name": "Civic AI Admin",
+  "short_name": "Admin",
+  "description": "Admin dashboard for Civic AI System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1d4ed8",
+  "icons": [
+    {
+      "src": "admin-app-logo.png",
+      "sizes": "609x611",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

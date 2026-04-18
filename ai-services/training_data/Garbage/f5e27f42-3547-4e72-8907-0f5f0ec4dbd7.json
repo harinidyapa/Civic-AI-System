@@ -1,0 +1,9 @@
+{
+  "sample_id": "f5e27f42-3547-4e72-8907-0f5f0ec4dbd7",
+  "issue_id": "69d10dc27b59b4d3084e19de",
+  "confirmed_category": "Garbage",
+  "ai_predicted_category": "Garbage",
+  "ai_confidence": 100,
+  "was_corrected": false,
+  "timestamp": "2026-04-04T13:10:26.219169"
+}

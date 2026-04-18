@@ -1,26 +1,36 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { getAssignedIssues } from "../services/api";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import { Clock, Wrench, CheckCircle, AlertTriangle, MapPin, Calendar } from "lucide-react";
+import { Clock, Wrench, CheckCircle, AlertTriangle, MapPin, Calendar, RefreshCw, Brain, Zap, Target } from "lucide-react";
 
 export default function Dashboard() {
   const [issues, setIssues] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchIssues();
-  }, []);
-
-  const fetchIssues = async () => {
+  const fetchIssues = useCallback(async () => {
     try {
+      setRefreshing(true);
       const { data } = await getAssignedIssues();
       setIssues(data);
     } catch (error) {
       console.error("Error fetching issues:", error);
+    } finally {
+      setRefreshing(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchIssues();
+  }, [fetchIssues]);
+
+  useEffect(() => {
+    const onRefresh = () => fetchIssues();
+    window.addEventListener("app-refresh", onRefresh);
+    return () => window.removeEventListener("app-refresh", onRefresh);
+  }, [fetchIssues]);
 
   const pending = issues.filter(i => i.status === "assigned").length;
   const inProgress = issues.filter(i => i.status === "in_progress").length;
@@ -54,7 +64,8 @@ export default function Dashboard() {
       value: pending,
       icon: Clock,
       color: "text-amber-600",
-      bgColor: "bg-amber-50",
+      bgColor: "bg-gradient-to-br from-amber-50 to-orange-100",
+      borderColor: "border-amber-200",
       description: "Issues waiting for action"
     },
     {
@@ -62,7 +73,8 @@ export default function Dashboard() {
       value: inProgress,
       icon: Wrench,
       color: "text-orange-600",
-      bgColor: "bg-orange-50",
+      bgColor: "bg-gradient-to-br from-orange-50 to-red-100",
+      borderColor: "border-orange-200",
       description: "Currently being worked on"
     },
     {
@@ -70,7 +82,8 @@ export default function Dashboard() {
       value: resolved,
       icon: CheckCircle,
       color: "text-emerald-600",
-      bgColor: "bg-emerald-50",
+      bgColor: "bg-gradient-to-br from-emerald-50 to-green-100",
+      borderColor: "border-emerald-200",
       description: "Successfully completed"
     }
   ];
@@ -79,7 +92,7 @@ export default function Dashboard() {
   const recentIssues = issues.slice(0, 3);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       <Navbar />
 
       <motion.div
@@ -88,13 +101,43 @@ export default function Dashboard() {
         animate="visible"
         variants={containerVariants}
       >
+        {/* AI-Powered Header */}
+        <motion.div
+          className="mb-8 text-center"
+          variants={itemVariants}
+        >
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <Brain className="text-purple-600" size={32} />
+            <Target className="text-blue-600" size={30} />
+            <Zap className="text-emerald-600" size={28} />
+          </div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-600 bg-clip-text text-transparent mb-2">
+            Field Operations Hub
+          </h1>
+          <p className="text-slate-600 text-lg">
+            AI-assisted issue resolution and crew management dashboard
+          </p>
+        </motion.div>
+
         {/* Header */}
         <motion.div
           className="mb-8"
           variants={itemVariants}
         >
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Crew Dashboard</h1>
-          <p className="text-slate-600">Welcome back! Here's your current workload overview.</p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 mb-2">Crew Dashboard</h2>
+              <p className="text-slate-600">Welcome back! Here's your current workload overview.</p>
+            </div>
+            <button
+              onClick={fetchIssues}
+              disabled={refreshing}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 transition-colors duration-200 disabled:opacity-60 shadow-lg"
+            >
+              <RefreshCw size={18} />
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
         </motion.div>
 
         {/* Quick link to full issue list */}
@@ -103,7 +146,7 @@ export default function Dashboard() {
           variants={itemVariants}
         >
           <motion.div
-            className="backdrop-blur-md bg-white/30 border border-white/20 rounded-2xl shadow-xl p-6 cursor-pointer"
+            className="backdrop-blur-md bg-white/70 border border-white/20 rounded-2xl shadow-xl p-6 cursor-pointer hover:bg-white/80 transition-all duration-300"
             whileHover={{ scale: 1.02, y: -2 }}
             transition={{ duration: 0.3 }}
             onClick={() => setActivePage("allissues")}
@@ -123,16 +166,19 @@ export default function Dashboard() {
             return (
               <motion.div
                 key={stat.title}
-                className="backdrop-blur-md bg-white/30 border border-white/20 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 text-center"
+                className={`backdrop-blur-md bg-white/70 border ${stat.borderColor} rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 text-center relative overflow-hidden`}
                 whileHover={{ scale: 1.05, y: -5 }}
                 transition={{ duration: 0.3 }}
               >
-                <div className={`w-12 h-12 ${stat.bgColor} rounded-xl flex items-center justify-center mb-4`}>
-                  <Icon size={24} className={stat.color} />
+                <div className={`absolute inset-0 ${stat.bgColor} opacity-50`}></div>
+                <div className="relative z-10">
+                  <div className={`w-14 h-14 ${stat.bgColor} rounded-xl flex items-center justify-center mb-4 mx-auto shadow-lg`}>
+                    <Icon size={28} className={stat.color} />
+                  </div>
+                  <div className="text-4xl font-bold text-slate-800 mb-2">{stat.value}</div>
+                  <div className="text-slate-700 font-semibold mb-1">{stat.title}</div>
+                  <p className="text-sm text-slate-500">{stat.description}</p>
                 </div>
-                <div className="text-3xl font-bold text-slate-800 mb-2">{stat.value}</div>
-                <div className="text-slate-600 font-medium">{stat.title}</div>
-                <p className="text-sm text-slate-500 mt-2">{stat.description}</p>
               </motion.div>
             );
           })}

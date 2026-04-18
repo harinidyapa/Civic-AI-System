@@ -1,0 +1,17 @@
+{
+  "name": "Civic AI Crew",
+  "short_name": "Crew",
+  "description": "Crew portal for issue assignment and response tracking",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#be123c",
+  "icons": [
+    {
+      "src": "Crew app logo.png",
+      "sizes": "609x611",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

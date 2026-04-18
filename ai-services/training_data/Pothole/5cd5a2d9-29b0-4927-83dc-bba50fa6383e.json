@@ -1,0 +1,9 @@
+{
+  "sample_id": "5cd5a2d9-29b0-4927-83dc-bba50fa6383e",
+  "issue_id": "69d5f7935c91df13e85009d0",
+  "confirmed_category": "Pothole",
+  "ai_predicted_category": "Pothole",
+  "ai_confidence": 100,
+  "was_corrected": false,
+  "timestamp": "2026-04-08T06:37:07.613941"
+}

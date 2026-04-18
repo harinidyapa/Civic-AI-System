@@ -4,7 +4,7 @@ import { getAssignedIssues, updateIssueStatus, getRAGSuggestion } from "../servi
 import {
   ArrowLeft, CheckCircle, XCircle, AlertCircle,
   X, Trash2, Brain, Lightbulb, Clock, Wrench,
-  ShieldAlert, ChevronDown, ChevronUp, Loader2, BookOpen
+  ShieldAlert, ChevronDown, ChevronUp, Loader2, BookOpen, AlertTriangle
 } from "lucide-react";
 import imageCompression from "browser-image-compression";
 
@@ -23,8 +23,19 @@ function RAGSuggestionPanel({ issueId }) {
       const res = await getRAGSuggestion(issueId);
       setSuggestion(res.data);
       setFetched(true);
+
+      if (res.data?.error && !res.data?.suggestion) {
+        setError(res.data.error);
+      }
     } catch (e) {
-      setError("Could not load suggestion. Try again.");
+      console.error("RAG suggestion request failed:", e);
+      const errorMessage = e?.response?.data?.error || e?.message || "Could not load suggestion. Try again.";
+      // Check for quota exceeded or service unavailable
+      if (errorMessage.includes("quota") || errorMessage.includes("429") || errorMessage.includes("unreachable")) {
+        setError("AI service temporarily unavailable. Showing standard resolution procedure.");
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -33,6 +44,12 @@ function RAGSuggestionPanel({ issueId }) {
   useEffect(() => {
     if (issueId) fetchSuggestion();
   }, [issueId]);
+
+  const apiResponse = suggestion ?? {};
+  const ragPayload = apiResponse.suggestion ?? apiResponse;
+  const similarCount = apiResponse.similar_count ?? 0;
+
+  const hasSuggestion = !!ragPayload;
 
   return (
     <div style={{
@@ -64,7 +81,16 @@ function RAGSuggestionPanel({ issueId }) {
             <span style={{ fontSize: 13, fontWeight: 800, color: "#c4b5fd", letterSpacing: 0.5 }}>
               AI RESOLUTION GUIDE
             </span>
-            {suggestion?.similar_count > 0 && (
+            {suggestion?.note && (
+              <span style={{
+                marginLeft: 8, fontSize: 10, color: "#fbbf24",
+                background: "rgba(251,191,36,0.1)", padding: "2px 7px",
+                borderRadius: 20, border: "1px solid rgba(251,191,36,0.2)"
+              }}>
+                Standard Procedure
+              </span>
+            )}
+            {suggestion?.similar_count > 0 && !suggestion?.note && (
               <span style={{
                 marginLeft: 8, fontSize: 10, color: "#7c6fad",
                 background: "rgba(139,92,246,0.1)", padding: "2px 7px",
@@ -99,9 +125,22 @@ function RAGSuggestionPanel({ issueId }) {
             </div>
           )}
 
-          {suggestion?.suggestion && !loading && (
+          {fetched && !loading && !error && !hasSuggestion && (
+            <div style={{
+              background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)",
+              borderRadius: 10, padding: "10px 14px",
+              display: "flex", gap: 10, alignItems: "flex-start"
+            }}>
+              <AlertTriangle size={14} color="#f87171" style={{ marginTop: 2, flexShrink: 0 }} />
+              <p style={{ fontSize: 12, color: "#fca5a5", margin: 0, lineHeight: 1.6 }}>
+                {error || "AI returned no suggestion for this issue. Please refresh or try again."}
+              </p>
+            </div>
+          )}
+
+          {hasSuggestion && !loading && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {suggestion.suggestion.summary && (
+              {ragPayload.summary && (
                 <div style={{
                   background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.15)",
                   borderRadius: 10, padding: "10px 14px",
@@ -109,18 +148,18 @@ function RAGSuggestionPanel({ issueId }) {
                 }}>
                   <Lightbulb size={14} color="#a78bfa" style={{ marginTop: 2, flexShrink: 0 }} />
                   <p style={{ fontSize: 12, color: "#c4b5fd", margin: 0, lineHeight: 1.6 }}>
-                    {suggestion.suggestion.summary}
+                    {ragPayload.summary}
                   </p>
                 </div>
               )}
 
-              {suggestion.suggestion.steps?.length > 0 && (
+              {ragPayload.steps?.length > 0 && (
                 <div>
                   <p style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
                     Resolution Steps
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                    {suggestion.suggestion.steps.map((step, i) => (
+                    {ragPayload.steps.map((step, i) => (
                       <div key={i} style={{
                         display: "flex", gap: 10, alignItems: "flex-start",
                         background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 12px"
@@ -139,14 +178,14 @@ function RAGSuggestionPanel({ issueId }) {
               )}
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {suggestion.suggestion.materials?.length > 0 && (
+                {ragPayload.materials?.length > 0 && (
                   <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
                       <Wrench size={12} color="#60a5fa" />
                       <span style={{ fontSize: 10, fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: 0.8 }}>Materials</span>
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                      {suggestion.suggestion.materials.map((m, i) => (
+                      {ragPayload.materials.map((m, i) => (
                         <span key={i} style={{
                           fontSize: 10, color: "#9ca3af",
                           background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.15)",
@@ -156,18 +195,18 @@ function RAGSuggestionPanel({ issueId }) {
                     </div>
                   </div>
                 )}
-                {suggestion.suggestion.estimated_time && (
+                {ragPayload.estimated_time && (
                   <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
                       <Clock size={12} color="#34d399" />
                       <span style={{ fontSize: 10, fontWeight: 700, color: "#34d399", textTransform: "uppercase", letterSpacing: 0.8 }}>Est. Time</span>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: "#6ee7b7" }}>{suggestion.suggestion.estimated_time}</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#6ee7b7" }}>{ragPayload.estimated_time}</span>
                   </div>
                 )}
               </div>
 
-              {suggestion.suggestion.safety_note && (
+              {ragPayload.safety_note && (
                 <div style={{
                   background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)",
                   borderRadius: 10, padding: "10px 14px",
@@ -175,12 +214,12 @@ function RAGSuggestionPanel({ issueId }) {
                 }}>
                   <ShieldAlert size={13} color="#f87171" style={{ marginTop: 1, flexShrink: 0 }} />
                   <p style={{ fontSize: 11, color: "#fca5a5", margin: 0, lineHeight: 1.5 }}>
-                    <strong>Safety:</strong> {suggestion.suggestion.safety_note}
+                    <strong>Safety:</strong> {ragPayload.safety_note}
                   </p>
                 </div>
               )}
 
-              {suggestion.similar_issues?.length > 0 && (
+              {suggestion?.similar_issues?.length > 0 && (
                 <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 10 }}>
                   <p style={{ fontSize: 10, color: "#4b5563", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
                     <BookOpen size={10} /> Retrieved from {suggestion.similar_issues.length} past resolved case{suggestion.similar_issues.length > 1 ? "s" : ""}
@@ -199,7 +238,7 @@ function RAGSuggestionPanel({ issueId }) {
             </div>
           )}
 
-          {suggestion?.suggestion && suggestion.similar_count === 0 && !loading && (
+          {hasSuggestion && similarCount === 0 && !loading && (
             <p style={{ fontSize: 11, color: "#4b5563", marginTop: 4 }}>
               No similar past cases found — suggestion generated from AI expertise only.
             </p>
@@ -236,26 +275,34 @@ export default function IssueDetail() {
     setIssue(found);
   };
 
+  const openInGoogleMaps = () => {
+    if (issue?.location?.lat && issue?.location?.lng) {
+      const url = `https://www.google.com/maps?q=${issue.location.lat},${issue.location.lng}`;
+      window.open(url, '_blank');
+    }
+  };
+
   // ── NEW: fetch RAG suggestion and pre-fill resolution plan ──
   const fetchRAGResolutionPlan = async () => {
     setRagPlanLoading(true);
     try {
       const res = await getRAGSuggestion(id);
-      const suggestion = res.data?.suggestion;
-      if (suggestion?.steps?.length > 0) {
+      const responseData = res.data ?? {};
+      const result = responseData.suggestion ?? responseData;
+      if (result?.steps?.length > 0) {
         const autoFilled = [
-          suggestion.summary,
+          result.summary,
           "",
           "Steps:",
-          ...suggestion.steps.map((s, i) => `${i + 1}. ${s}`),
+          ...result.steps.map((s, i) => `${i + 1}. ${s}`),
           "",
-          `Estimated time: ${suggestion.estimated_time || "TBD"}`,
-          `Materials needed: ${suggestion.materials?.join(", ") || "Standard equipment"}`,
+          `Estimated time: ${result.estimated_time || "TBD"}`,
+          `Materials needed: ${result.materials?.join(", ") || "Standard equipment"}`,
         ].join("\n");
         setComment(autoFilled);
       }
     } catch (e) {
-      // silent fail — crew can still type manually
+      console.error("RAG auto-fill failed:", e);
     } finally {
       setRagPlanLoading(false);
     }
@@ -342,7 +389,15 @@ export default function IssueDetail() {
 
           <div className="text-sm text-slate-600 mb-2">
             <p>Category: <span className="font-medium">{issue.category}</span></p>
-            <p>Location: <span className="font-medium">{issue.location?.address || `${issue.location?.lat?.toFixed(4)}, ${issue.location?.lng?.toFixed(4)}`}</span></p>
+            <p>Location: 
+              <span 
+                className="font-medium text-blue-600 hover:text-blue-800 cursor-pointer underline decoration-dotted hover:decoration-solid transition-all duration-200"
+                onClick={openInGoogleMaps}
+                title="Click to open in Google Maps"
+              >
+                {issue.location?.address || `${issue.location?.lat?.toFixed(4)}, ${issue.location?.lng?.toFixed(4)}`}
+              </span>
+            </p>
             {issue.urgencyLabel && <p>Urgency: <span className="font-medium">{issue.urgencyLabel}</span></p>}
           </div>
 

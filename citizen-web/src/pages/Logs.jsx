@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getMyReports, getIssueDetail, markLogsAsViewed } from "../services/api";
-import { Calendar, MapPin, CheckCircle, AlertCircle, Clock, Image as ImageIcon } from "lucide-react";
+import { Calendar, MapPin, CheckCircle, AlertCircle, Clock, Image as ImageIcon, RefreshCw } from "lucide-react";
 
 export default function Logs() {
   const [issues, setIssues] = useState([]);
@@ -8,20 +8,27 @@ export default function Logs() {
   const [selectedIssueId, setSelectedIssueId] = useState(null);
   const [selectedIssueData, setSelectedIssueData] = useState(null);
 
-  useEffect(() => {
-    loadIssues();
-  }, []);
-
-  const loadIssues = async () => {
+  const loadIssues = useCallback(async () => {
     try {
+      setLoading(true);
       const { data } = await getMyReports();
       setIssues(data);
-      setLoading(false);
     } catch (error) {
       console.error("Error loading issues:", error);
+    } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadIssues();
+  }, [loadIssues]);
+
+  useEffect(() => {
+    const onRefresh = () => loadIssues();
+    window.addEventListener("app-refresh", onRefresh);
+    return () => window.removeEventListener("app-refresh", onRefresh);
+  }, [loadIssues]);
 
   const handleIssueClick = async (issueId) => {
     try {
@@ -240,7 +247,17 @@ export default function Logs() {
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-slate-800 mb-8">Issue Logs</h1>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+          <h1 className="text-4xl font-bold text-slate-800">Issue Logs</h1>
+          <button
+            onClick={loadIssues}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 transition-colors duration-200 disabled:opacity-60"
+          >
+            <RefreshCw size={18} />
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
 
         {issues.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-lg p-8 text-center">

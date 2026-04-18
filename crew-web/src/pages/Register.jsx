@@ -1,27 +1,68 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { registerCrew } from "../services/api";
+import { registerCrew, verifyRegistration } from "../services/api";
 import { HardHat, User, Mail, Lock, ArrowRight } from "lucide-react";
 
 export default function Register() {
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: ""
-  });
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [phase, setPhase] = useState("signup");
   const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const handleSignUp = async (e) => {
     e.preventDefault();
+    setError("");
+
+    if (!name || !email || !password || !confirmPassword) {
+      setError("All fields are required.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await registerCrew(form);
-      alert("Registered successfully");
+      await registerCrew({ name, email, password });
+      setPhase("otp");
+      setMessage("OTP sent to your email. Enter it below to complete registration.");
+    } catch (err) {
+      setError(err.response?.data?.message || "Registration failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!otp) {
+      setError("OTP is required");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await verifyRegistration(email, otp);
+      alert("Registration confirmed. Please login.");
       navigate("/login");
     } catch (err) {
-      alert("Registration failed");
+      setError(err.response?.data?.message || "OTP verification failed");
     } finally {
       setIsLoading(false);
     }
@@ -79,75 +120,128 @@ export default function Register() {
         >
           <h2 className="text-2xl font-semibold text-white text-center mb-6">Create Account</h2>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <motion.div
-              variants={itemVariants}
-              whileFocus={{ scale: 1.02 }}
-            >
-              <div className="relative">
-                <User size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-300" />
-                <input
-                  type="text"
-                  placeholder="Full Name"
-                  className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required
-                />
-              </div>
-            </motion.div>
+          <form className="space-y-6" onSubmit={phase === "signup" ? handleSignUp : handleVerify}>
+            {phase === "signup" ? (
+              <>
+                <motion.div
+                  variants={itemVariants}
+                  whileFocus={{ scale: 1.02 }}
+                >
+                  <div className="relative">
+                    <User size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-300" />
+                    <input
+                      type="text"
+                      placeholder="Full Name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                      className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
+                    />
+                  </div>
+                </motion.div>
 
-            <motion.div
-              variants={itemVariants}
-              whileFocus={{ scale: 1.02 }}
-            >
-              <div className="relative">
-                <Mail size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-300" />
-                <input
-                  type="email"
-                  placeholder="Crew Email"
-                  className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  required
-                />
-              </div>
-            </motion.div>
+                <motion.div
+                  variants={itemVariants}
+                  whileFocus={{ scale: 1.02 }}
+                >
+                  <div className="relative">
+                    <Mail size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-300" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Crew Email"
+                      required
+                      className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
+                    />
+                  </div>
+                </motion.div>
 
-            <motion.div
-              variants={itemVariants}
-              whileFocus={{ scale: 1.02 }}
-            >
-              <div className="relative">
-                <Lock size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-300" />
-                <input
-                  type="password"
-                  placeholder="Secure Password"
-                  className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  required
-                />
-              </div>
-            </motion.div>
+                <motion.div
+                  variants={itemVariants}
+                  whileFocus={{ scale: 1.02 }}
+                >
+                  <div className="relative">
+                    <Lock size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-300" />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Secure Password"
+                      required
+                      className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
+                    />
+                  </div>
+                </motion.div>
 
-            <motion.button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-amber-600 text-white py-4 rounded-2xl font-semibold hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-amber-800 transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-              variants={itemVariants}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              {isLoading ? (
-                <div className="flex items-center justify-center">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  Creating Account...
-                </div>
-              ) : (
-                <div className="flex items-center justify-center">
-                  Join Team
-                  <ArrowRight size={20} className="ml-2" />
-                </div>
-              )}
-            </motion.button>
+                <motion.div
+                  variants={itemVariants}
+                  whileFocus={{ scale: 1.02 }}
+                >
+                  <div className="relative">
+                    <Lock size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-300" />
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm Password"
+                      required
+                      className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
+                    />
+                  </div>
+                </motion.div>
+
+                <motion.button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-amber-600 text-white py-4 rounded-2xl font-semibold hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-amber-800 transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  variants={itemVariants}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center justify-center">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Sending OTP...
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center">
+                      Join Team
+                      <ArrowRight size={20} className="ml-2" />
+                    </div>
+                  )}
+                </motion.button>
+              </>
+            ) : (
+              <>
+                <motion.div
+                  variants={itemVariants}
+                  whileFocus={{ scale: 1.02 }}
+                >
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Enter OTP"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      required
+                      className="w-full pl-4 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-orange-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-300"
+                    />
+                  </div>
+                </motion.div>
+
+                <motion.button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-amber-600 text-white py-4 rounded-2xl font-semibold hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-amber-800 transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  variants={itemVariants}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {isLoading ? "Verifying OTP..." : "Verify Registration OTP"}
+                </motion.button>
+              </>
+            )}
           </form>
 
           <motion.div

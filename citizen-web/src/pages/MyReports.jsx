@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getMyReports } from "../services/api";
-import { FileText, MapPin, CheckCircle, Clock, AlertCircle, Images, XCircle, Loader2, Tag, AlertTriangle } from "lucide-react";
+import { FileText, MapPin, CheckCircle, Clock, AlertCircle, Images, XCircle, Loader2, Tag, AlertTriangle, RefreshCw } from "lucide-react";
 
 function SeverityBar({ score }) {
   const s = Math.min(5, Math.max(1, score || 1));
@@ -44,9 +44,7 @@ function MyReports() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
 
-  useEffect(() => { fetchReports(); }, []);
-
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     try {
       setLoading(true);
       const res = await getMyReports();
@@ -57,19 +55,37 @@ function MyReports() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => { fetchReports(); }, [fetchReports]);
+
+  useEffect(() => {
+    const onRefresh = () => fetchReports();
+    window.addEventListener("app-refresh", onRefresh);
+    return () => window.removeEventListener("app-refresh", onRefresh);
+  }, [fetchReports]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h2 className="text-4xl font-bold text-slate-800 flex items-center gap-3">
-            <div className="bg-emerald-600 rounded-full p-2">
-              <FileText size={28} className="text-white" />
-            </div>
-            My Reports
-          </h2>
-          <p className="text-slate-600 mt-2">Track all your submitted issues and their status</p>
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-4xl font-bold text-slate-800 flex items-center gap-3">
+              <div className="bg-emerald-600 rounded-full p-2">
+                <FileText size={28} className="text-white" />
+              </div>
+              My Reports
+            </h2>
+            <p className="text-slate-600 mt-2">Track all your submitted issues and their status</p>
+          </div>
+          <button
+            onClick={fetchReports}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 transition-colors duration-200 disabled:opacity-60"
+          >
+            <RefreshCw size={18} />
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
 
         {error && (
