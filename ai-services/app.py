@@ -598,7 +598,9 @@ Return ONLY the rewritten description. No preamble, no quotes, no explanation.""
         return jsonify({"suggestion": None}), 200
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=True)
+    port = int(os.getenv("PORT", 8000))
+    debug_mode = os.getenv("FLASK_ENV") != "production"
+    app.run(host="0.0.0.0", port=port, debug=debug_mode)
 
 # ──────────────────────────────────────────────
 # RAG ENDPOINT: Resolution suggestion for crew

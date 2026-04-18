@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: civic-ai-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MONGO_URI
+        scope: run_and_build
+        sync: false
+      - key: JWT_SECRET
+        scope: run_and_build
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        scope: run_and_build
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        scope: run_and_build
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        scope: run_and_build
+        sync: false
+      - key: AI_SERVICE_URL
+        scope: run_and_build
+        sync: false
+      - key: SMTP_HOST
+        scope: run_and_build
+        sync: false
+      - key: SMTP_PORT
+        scope: run_and_build
+        sync: false
+      - key: SMTP_USER
+        scope: run_and_build
+        sync: false
+      - key: SMTP_PASS
+        scope: run_and_build
+        sync: false
+      - key: EMAIL_FROM
+        scope: run_and_build
+        sync: false
+      - key: OTP_LENGTH
+        scope: run_and_build
+        sync: false
+      - key: OTP_EXPIRE_MINUTES
+        scope: run_and_build
+        sync: false
+      - key: OTP_MAX_ATTEMPTS
+        scope: run_and_build
+        sync: false
