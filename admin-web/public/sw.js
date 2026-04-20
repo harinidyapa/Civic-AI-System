@@ -1,5 +1,5 @@
 const CACHE_NAME = 'civic-ai-admin-v1';
-const URLS_TO_CACHE = ['/', '/index.html', '/Admin app logo.png', '/manifest.webmanifest'];
+const URLS_TO_CACHE = ['/', '/index.html', '/Admin app logo.jpg', '/manifest.webmanifest'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
