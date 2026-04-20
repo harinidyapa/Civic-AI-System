@@ -1,25 +1,17 @@
 services:
   - type: web
     name: civic-ai-services
-    dockerfile: ./Dockerfile
-    dockerfilePath: ./Dockerfile
-    region: oregon
+    env: python
     plan: free
+    pythonVersion: 3.11
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 1 -b 0.0.0.0:$PORT app:app
     envVars:
       - key: HF_TOKEN
-        scope: run_and_build
-        sync: false
       - key: CLOUDINARY_CLOUD_NAME
-        scope: run_and_build
-        sync: false
       - key: CLOUDINARY_API_KEY
-        scope: run_and_build
-        sync: false
       - key: CLOUDINARY_API_SECRET
-        scope: run_and_build
-        sync: false
       - key: GEMINI_API_KEY
-        scope: run_and_build
-        sync: false
-      - key: FLASK_ENV
-        value: production
+      - key: GOOGLE_API_KEY
+      - key: PORT
+        value: 8000

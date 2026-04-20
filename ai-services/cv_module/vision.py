@@ -24,9 +24,9 @@ YOLO_TO_CATEGORY = {
 }
 
 # Ensure API Key exists
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 if not api_key:
-    print("⚠️  WARNING: GEMINI_API_KEY not set in environment variables!", file=sys.stderr)
+    print("⚠️  WARNING: GEMINI_API_KEY / GOOGLE_API_KEY not set in environment variables!", file=sys.stderr)
     print("   Image classification will fail unless this is set.", file=sys.stderr)
 
 try:

@@ -32,18 +32,17 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
     return response
 
-# ──────────────────────────────────────────────
-# HEALTH CHECK ENDPOINT (for Render)
-# ──────────────────────────────────────────────
-
-@app.route("/health", methods=["GET"])
-def health_check():
-    """Health check endpoint for deployment monitoring."""
+@app.route("/", methods=["GET"])
+def root():
     return jsonify({
-        "status": "healthy",
-        "service": "civic-ai-services",
-        "timestamp": datetime.now().isoformat()
-    }), 200
+        "status": "ok",
+        "service": "ai-services",
+        "gemini_configured": bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
+    })
+
+@app.route("/healthz", methods=["GET"])
+def health_check():
+    return jsonify({"status": "ok"}), 200
 
 # ──────────────────────────────────────────────
 # EXISTING ENDPOINTS (unchanged)
