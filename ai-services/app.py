@@ -33,6 +33,19 @@ def add_cors_headers(response):
     return response
 
 # ──────────────────────────────────────────────
+# HEALTH CHECK ENDPOINT (for Render)
+# ──────────────────────────────────────────────
+
+@app.route("/health", methods=["GET"])
+def health_check():
+    """Health check endpoint for deployment monitoring."""
+    return jsonify({
+        "status": "healthy",
+        "service": "civic-ai-services",
+        "timestamp": datetime.now().isoformat()
+    }), 200
+
+# ──────────────────────────────────────────────
 # EXISTING ENDPOINTS (unchanged)
 # ──────────────────────────────────────────────
 
