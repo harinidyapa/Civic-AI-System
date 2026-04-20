@@ -8,8 +8,8 @@
   "theme_color": "#1d4ed8",
   "icons": [
     {
-      "src": "admin-app-logo.png",
-      "sizes": "609x611",
+      "src": "Admin app logo.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
