@@ -9,7 +9,7 @@
   "icons": [
     {
       "src": "Citizen app logo.png",
-      "sizes": "609x611",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
