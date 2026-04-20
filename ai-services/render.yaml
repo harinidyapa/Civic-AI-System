@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: civic-ai-services
+    env: python
+    plan: free
+    pythonVersion: 3.10
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 1 -b 0.0.0.0:8000 app:app
+    envVars:
+      - key: HF_TOKEN
+        scope: run_and_build
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        scope: run_and_build
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        scope: run_and_build
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        scope: run_and_build
+        sync: false
+      - key: GEMINI_API_KEY
+        scope: run_and_build
+        sync: false
+      - key: PORT
+        value: 8000
