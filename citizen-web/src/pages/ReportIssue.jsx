@@ -17,7 +17,11 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
 const AI_SERVICE_URL = import.meta.env.VITE_AI_SERVICE_URL || `http://${window.location.hostname}:8000`;
+
+console.log("🔍 AI Service URL:", AI_SERVICE_URL);
+console.log("🔍 API Base URL:", API_BASE_URL);
 
 const URGENCY_COLORS = {
   Critical: "bg-red-100 text-red-700 border-red-300",
@@ -281,6 +285,7 @@ function ReportIssue() {
   setAiLoading(true);
   setAiResult(null);
   try {
+    console.log("🔍 Starting AI analysis...");
     const base64 = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(compressedFile);
@@ -288,10 +293,15 @@ function ReportIssue() {
       reader.onerror = reject;
     });
 
+    console.log("📤 Sending to AI service:", `${AI_SERVICE_URL}/analyze-and-enhance`);
+    
+    // Add timeout to prevent hanging
     const response = await axios.post(`${AI_SERVICE_URL}/analyze-and-enhance`, {
       image: base64,
       description: currentDescription || ""
-    });
+    }, { timeout: 30000 }); // 30 second timeout
+
+    console.log("✅ AI response received:", response.data);
 
     const result = response.data;
     setAiResult(result);
@@ -316,7 +326,18 @@ function ReportIssue() {
       });
     }
   } catch (err) {
-    console.error("AI analysis failed:", err.message);
+    console.error("❌ AI analysis failed:", err.message);
+    console.error("❌ Error details:", err.response?.data || err);
+    // Show error to user
+    if (err.code === 'ECONNABORTED') {
+      alert("AI analysis timed out. Please try again or submit without AI analysis.");
+    } else if (err.response?.status === 404) {
+      alert("AI service endpoint not found. Please check the service URL.");
+    } else if (err.response?.status === 500) {
+      alert("AI service error. Please try again or submit without AI analysis.");
+    } else {
+      alert("AI analysis failed. You can still submit the issue manually.");
+    }
   } finally {
     setAiLoading(false);
   }
@@ -424,8 +445,8 @@ function ReportIssue() {
     finalData.append("address", address);
     images.forEach((img) => finalData.append("images", img));
     try {
-      // Don't explicitly set Content-Type header - let axios handle multipart/form-data
-      await axios.post("http://localhost:5000/api/issues", finalData, {
+      // Use environment variable for API URL
+      await axios.post(`${API_BASE_URL}/issues`, finalData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       alert("Issue Reported Successfully!");
